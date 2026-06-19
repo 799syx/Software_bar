@@ -1,0 +1,25 @@
+{
+  "name": "灵山胜境移动导览",
+  "short_name": "灵山导览",
+  "description": "游客手机和景区触屏终端专用导览端。",
+  "start_url": "/mobile/",
+  "scope": "/mobile/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#fbfcf8",
+  "theme_color": "#2f6d52",
+  "icons": [
+    {
+      "src": "/assets/lingling-avatar.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/lingling-avatar-v2.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

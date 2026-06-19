@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test-and-build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run backend tests
+        shell: pwsh
+        run: |
+          if (Test-Path "示范景区公开资料包") {
+            python -m unittest discover -s tests
+          } else {
+            python -m unittest `
+              tests.test_backend_core.BackendCoreTest.test_quote_table_name_rejects_unknown_table `
+              tests.test_backend_core.BackendCoreTest.test_public_llm_config_hides_api_key `
+              tests.test_backend_core.BackendCoreTest.test_admin_token_requires_explicit_env `
+              tests.test_backend_core.BackendCoreTest.test_vision_config_is_independent_from_deepseek_text_config `
+              tests.test_backend_core.BackendCoreTest.test_normalize_image_data_url_accepts_small_png `
+              tests.test_backend_core.BackendCoreTest.test_normalize_image_data_url_rejects_svg `
+              tests.test_backend_core.BackendCoreTest.test_hybrid_search_matches_related_document `
+              tests.test_backend_core.BackendCoreTest.test_streaming_chunks_and_sse_event
+          }
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend-vue/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend-vue
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend-vue
+        run: npm run build
