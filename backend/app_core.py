@@ -2857,9 +2857,11 @@ def json_response(handler, data, status=200):
     handler.send_response(status)
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     handler.send_header("Content-Length", str(len(body)))
+    handler.send_header("Connection", "close")
     send_cors_headers(handler)
     handler.end_headers()
     handler.wfile.write(body)
+    handler.close_connection = True
 
 
 def error_response(handler, message, status=400, code="bad_request"):

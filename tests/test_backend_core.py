@@ -493,13 +493,14 @@ class BackendHttpTest(unittest.TestCase):
             return exc.code, exc.headers, exc.read().decode("utf-8")
 
     def test_admin_write_without_token_fails(self):
-        status, _headers, body = self.request(
+        status, headers, body = self.request(
             "POST",
             "/api/admin/knowledge",
             {"title": "测试知识", "category": "测试", "content": "测试内容"},
         )
         data = json.loads(body)
         self.assertEqual(status, 401)
+        self.assertEqual(headers.get("Connection"), "close")
         self.assertEqual(data["code"], "admin_token_invalid")
 
     def test_admin_write_with_token_succeeds(self):

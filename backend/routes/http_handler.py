@@ -5,6 +5,16 @@ import app_core as core
 from routes.api_router import dispatch
 
 
+def _discard_request_body(handler):
+    """Consume a rejected request body before closing the loopback connection."""
+    try:
+        length = int(handler.headers.get("Content-Length", 0))
+    except (TypeError, ValueError):
+        length = 0
+    if length > 0:
+        handler.rfile.read(min(length, core.MAX_JSON_BODY_BYTES))
+
+
 class ScenicGuideHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
@@ -35,6 +45,7 @@ class ScenicGuideHandler(BaseHTTPRequestHandler):
                     return
             else:
                 if core.is_admin_mutation(path, method) and not core.has_valid_admin_token(self):
+                    _discard_request_body(self)
                     core.error_response(self, "admin token invalid or missing", 401, "admin_token_invalid")
                     return
                 if path in {"/api/chat", "/api/chat/stream"} and core.rate_limit_exceeded(self, "chat", 30, 60):
