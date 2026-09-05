@@ -2,6 +2,7 @@ import base64
 import io
 import json
 import os
+import re
 import shutil
 import sys
 import threading
@@ -16,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import app  # noqa: E402
+import ai_clients  # noqa: E402
 import search_engine  # noqa: E402
 import streaming  # noqa: E402
 
@@ -68,6 +70,21 @@ class BackendCoreTest(unittest.TestCase):
         public = app.public_llm_config(config)
         self.assertNotIn("apiKey", public)
 
+    def test_placeholder_llm_key_is_treated_as_missing(self):
+        with EnvPatch(
+            {
+                "SCENIC_LLM_PROVIDER": "dashscope",
+                "SCENIC_LLM_API_KEY": None,
+                "DASHSCOPE_API_KEY": "sk-your-dashscope-api-key",
+                "BAILIAN_API_KEY": None,
+            }
+        ):
+            config = app.get_llm_config()
+
+        self.assertFalse(config["hasApiKey"])
+        self.assertFalse(config["available"])
+        self.assertEqual(config["reason"], "missing_api_key")
+
     def test_admin_token_requires_explicit_env(self):
         with EnvPatch({"SCENIC_ADMIN_TOKEN": None}):
             self.assertEqual(app.admin_token(), "")
@@ -116,6 +133,28 @@ class BackendCoreTest(unittest.TestCase):
         self.assertEqual(vision_config["baseUrl"], "https://dashscope.aliyuncs.com/compatible-mode/v1")
         self.assertTrue(vision_config["multimodal"])
 
+    def test_llm_client_bypasses_dead_local_proxy(self):
+        with EnvPatch(
+            {
+                "HTTP_PROXY": "http://127.0.0.1:9",
+                "HTTPS_PROXY": None,
+                "ALL_PROXY": None,
+                "SCENIC_LLM_DISABLE_PROXY": None,
+                "SCENIC_LLM_FORCE_PROXY": None,
+            }
+        ):
+            self.assertTrue(ai_clients.should_bypass_proxy())
+
+    def test_llm_client_force_proxy_overrides_bypass(self):
+        with EnvPatch(
+            {
+                "HTTP_PROXY": "http://127.0.0.1:9",
+                "SCENIC_LLM_FORCE_PROXY": "true",
+                "SCENIC_LLM_DISABLE_PROXY": None,
+            }
+        ):
+            self.assertFalse(ai_clients.should_bypass_proxy())
+
     def test_analyze_scenic_image_uses_independent_vision_config(self):
         image_data = base64.b64encode(b"\x89PNG\r\n\x1a\n").decode("ascii")
         seen_config = {}
@@ -162,6 +201,19 @@ class BackendCoreTest(unittest.TestCase):
 
     def test_classify_route_intent(self):
         self.assertEqual(app.classify_intent("如果我喜欢历史文化，应该怎么逛？"), "路线推荐")
+        self.assertEqual(app.classify_intent("五印坛城怎么走？"), "路线推荐")
+
+    def test_spot_wayfinding_question_returns_path(self):
+        with EnvPatch({"SCENIC_CHAT_FAST_MODE": "true", "SCENIC_LLM_API_KEY": None, "DASHSCOPE_API_KEY": None}):
+            result = app.answer_question("五印坛城怎么走？")
+
+        self.assertEqual(result["intent"], "路线推荐")
+        self.assertEqual(result["llmProvider"], "knowledge_base")
+        self.assertIn("游客服务中心", result["answer"])
+        self.assertIn("灵山梵宫", result["answer"])
+        self.assertIn("景观栈道", result["answer"])
+        self.assertIn("五印坛城", result["answer"])
+        self.assertNotIn("藏传佛教风格建筑", result["answer"])
 
     def test_answer_question_falls_back_when_llm_times_out(self):
         original = app.generate_with_llm
@@ -204,6 +256,86 @@ class BackendCoreTest(unittest.TestCase):
 
         self.assertTrue(result["fallback"])
         self.assertIn("开放", result["answer"])
+
+    def test_standard_factual_questions_hit_structured_facts(self):
+        expected = {
+            "灵山胜境成人票多少钱？": ["成人票", "210元"],
+            "灵山胜境半价票多少钱，哪些人能买？": ["半价票", "105元", "6-18", "60-69"],
+            "哪些游客可以免票？": ["6周岁以下", "1.4米", "70周岁以上", "现役军人", "残疾人"],
+            "门票加观光车的联票多少钱？": ["225元", "观光车"],
+            "观光车单独购票多少钱？": ["40元/人"],
+            "什么时候去灵山胜境比较合适？": ["春秋", "9点前", "太湖日落"],
+            "九龙灌浴平日表演时间是什么时候？": ["10:00", "11:30", "13:30", "15:00"],
+            "九龙灌浴主要看什么？": ["莲花", "太子佛", "九龙喷水"],
+            "梵宫《吉祥颂》演出时间？": ["10:35", "11:30", "14:00", "16:00", "20分钟"],
+            "五印坛城有什么互动体验？": ["绕坛城", "转动转经筒", "藏香"],
+            "灵山大佛有多高？": ["88米", "101.5米", "725吨"],
+            "灵山大佛手印有什么含义？": ["无畏印", "与愿印", "痛苦", "欢乐"],
+            "216 级登云道有什么寓意？": ["216", "108烦恼", "108愿望"],
+            "灵山梵宫为什么重要？": ["世界佛教论坛", "佛教艺术殿堂", "木雕", "壁画", "琉璃"],
+            "祥符禅寺有什么历史？": ["唐代", "北宋大中祥符", "千年古刹"],
+            "灵山大照壁有什么特色？": ["39.8米", "7米", "赵朴初", "华夏第一壁"],
+            "五明桥代表什么？": ["声明", "因明", "内明", "医方明", "工巧明"],
+            "百子戏弥勒适合亲子游吗？": ["百名孩童", "多子多福", "亲子"],
+            "喜欢历史文化，灵山胜境怎么逛？": ["灵山大照壁", "祥符禅寺", "灵山大佛", "灵山梵宫", "五印坛城"],
+            "自然风光爱好者适合什么路线？": ["佛足坛", "九龙灌浴", "菩提大道", "曼飞龙塔", "灵山精舍"],
+            "亲子家庭路线怎么安排？": ["九龙灌浴", "佛手广场", "百子戏弥勒", "灵山梵宫", "五印坛城"],
+            "哪里适合拍照打卡？": ["灵山大照壁", "九龙灌浴", "灵山大佛", "五印坛城", "曼飞龙塔"],
+            "景区里有什么素食推荐？": ["梵宫素斋", "50元", "素面", "35元", "灵山精舍"],
+            "游览灵山胜境穿什么比较合适？": ["运动鞋", "防晒", "保暖", "充电宝", "雨伞"],
+            "在佛教文化场所游览要注意什么？": ["保持安静", "尊重宗教", "不触摸佛像", "拍照"],
+        }
+        standard_text = (ROOT / "docs" / "标准测试集.md").read_text(encoding="utf-8")
+        questions = [question.strip() for question in re.findall(r"问题：(.+)", standard_text)]
+        self.assertEqual(len(questions), 25)
+        self.assertEqual(set(questions), set(expected))
+
+        failures = []
+        with EnvPatch({"SCENIC_CHAT_FAST_MODE": "true", "SCENIC_LLM_API_KEY": None, "DASHSCOPE_API_KEY": None}):
+            for question in questions:
+                result = app.answer_question(question)
+                compact_answer = re.sub(r"\s+", "", result["answer"])
+                missing = [term for term in expected[question] if term not in compact_answer]
+                if missing:
+                    failures.append((question, missing, result["answer"]))
+
+        self.assertGreaterEqual(len(questions) - len(failures), 23, failures)
+
+    def test_religious_photo_question_uses_etiquette_answer(self):
+        calls = []
+        answer_globals = app.answer_question.__globals__
+        original_generate_llm_answer = answer_globals["generate_llm_answer"]
+
+        def fake_generate_llm_answer(*_args, **_kwargs):
+            calls.append(True)
+            return {
+                "answer": "适合拍照。",
+                "relatedSpots": [],
+                "sourceRefs": [],
+                "intent": "路线推荐",
+                "confidence": 0.76,
+                "sentiment": "neutral",
+                "llmProvider": "test_llm",
+                "modelName": "test-model",
+                "fallback": False,
+            }
+
+        answer_globals["generate_llm_answer"] = fake_generate_llm_answer
+        try:
+            with EnvPatch({"SCENIC_CHAT_FAST_MODE": "false", "SCENIC_LLM_API_KEY": "test-key"}):
+                result = app.answer_question("佛教场所可以拍照吗？")
+        finally:
+            answer_globals["generate_llm_answer"] = original_generate_llm_answer
+
+        answer = result["answer"]
+        self.assertEqual(calls, [])
+        self.assertEqual(result["llmProvider"], "local_fact")
+        self.assertEqual(result["intent"], "文化礼仪")
+        self.assertIn("不随意拍照", answer)
+        self.assertIn("现场提示", answer)
+        self.assertIn("尊重宗教", answer)
+        self.assertNotIn("拍照打卡推荐", answer)
+        self.assertNotIn("适合拍照", answer)
 
     def test_confident_knowledge_hit_uses_llm_when_not_fast_mode(self):
         original_search = app.search_knowledge
@@ -253,17 +385,18 @@ class BackendCoreTest(unittest.TestCase):
     def test_behavior_analytics_reads_excel_baseline(self):
         result = app.build_behavior_analytics()
         self.assertTrue(result["available"])
-        self.assertEqual(result["rowCount"], 140447)
+        self.assertEqual(result["rowCount"], 777)
+        self.assertEqual(result["rawBehaviorRecordCount"], 140447)
         self.assertEqual(result["matchedScenicRows"], 777)
         self.assertTrue(result["structuredTableImported"])
         self.assertEqual(result["structuredTableName"], "behavior_visit_record")
-        self.assertEqual(result["analysisScope"], "长三角景区行为样本参考")
+        self.assertEqual(result["analysisScope"], "灵山游客行为记录")
         self.assertIn("景点景区旅游数据行为分析数据.xlsx", result["sampleSourceFile"])
         self.assertIn("灵山", result["scenicMatchedKeywords"])
         self.assertIn("官方 DOCX", result["lingshanDocumentSource"])
-        self.assertEqual(result["dateRange"]["start"], "2025-01-01")
+        self.assertEqual(result["dateRange"]["start"], "2025-01-03")
         self.assertEqual(result["dateRange"]["end"], "2025-12-31")
-        self.assertEqual(result["dataSource"]["label"], "长三角景区行为样本参考")
+        self.assertEqual(result["dataSource"]["label"], "灵山游客行为记录")
 
     def test_streaming_chunks_and_sse_event(self):
         chunks = streaming.chunk_text("九龙灌浴表演开始。建议提前到场。", max_chars=8)
@@ -397,6 +530,66 @@ class BackendHttpTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(data["available"])
 
+    def test_analytics_overview_empty_records_does_not_use_demo_samples(self):
+        status, _headers, body = self.request("GET", "/api/analytics/overview")
+        data = json.loads(body)
+        self.assertEqual(status, 200)
+        self.assertEqual(data["questionCount"], 0)
+        self.assertEqual(data["routeCount"], 0)
+        self.assertEqual(data["feedbackCount"], 0)
+        self.assertEqual(data["averageSatisfaction"], 0)
+        self.assertEqual(data["hotQuestions"], [])
+        self.assertEqual(data["intentDistribution"], {})
+        self.assertEqual(data["sentimentDistribution"], {})
+        self.assertEqual(data["satisfactionTrend"], [])
+        self.assertEqual(data["recentQuestions"], [])
+        self.assertFalse(data["dataSource"]["demoSampleUsed"])
+        self.assertEqual(data["dataSource"]["reportMode"], "real_records")
+
+    def test_analytics_feedback_score_overrides_stale_sentiment(self):
+        with app.get_connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO feedback_record (id, chat_id, score, comment, sentiment, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                ("feedback-positive-score", "", 5, "", "neutral", 1234567890),
+            )
+
+        status, _headers, body = self.request("GET", "/api/analytics/overview")
+        data = json.loads(body)
+
+        self.assertEqual(status, 200)
+        self.assertEqual(data["sentimentDistribution"].get("positive"), 1)
+        self.assertNotIn("neutral", data["sentimentDistribution"])
+
+    def test_analytics_updates_after_chat_and_feedback_posts(self):
+        status, _headers, body = self.request("POST", "/api/chat", {"question": "景区几点开放？"})
+        chat = json.loads(body)
+        self.assertEqual(status, 200)
+
+        status, _headers, body = self.request("GET", "/api/analytics/overview")
+        after_chat = json.loads(body)
+        self.assertEqual(status, 200)
+        self.assertEqual(after_chat["questionCount"], 1)
+        self.assertEqual(after_chat["recentQuestions"][0]["id"], chat["id"])
+
+        status, _headers, body = self.request(
+            "POST",
+            "/api/feedback",
+            {"chatId": chat["id"], "score": 4, "comment": "很好"},
+        )
+        self.assertEqual(status, 201)
+
+        status, _headers, body = self.request("GET", "/api/analytics/overview")
+        after_feedback = json.loads(body)
+
+        self.assertEqual(status, 200)
+        self.assertEqual(after_feedback["feedbackCount"], 1)
+        self.assertEqual(after_feedback["averageSatisfaction"], 4)
+        self.assertEqual(after_feedback["sentimentDistribution"].get("positive"), 1)
+        self.assertTrue(any(item["score"] == 4 and item["count"] == 1 for item in after_feedback["satisfactionTrend"]))
+
     def test_spot_location_code_can_resolve_anchor(self):
         anchor = next(
             spot
@@ -529,10 +722,10 @@ class BackendHttpTest(unittest.TestCase):
 
     def test_reference_spot_coordinates_are_corrected_on_init(self):
         spots = {spot["name"]: spot for spot in app.get_spots(include_inactive=True)}
-        self.assertAlmostEqual(spots["灵山大佛"]["lat"], 31.43194, places=5)
-        self.assertAlmostEqual(spots["灵山大佛"]["lon"], 120.09139, places=5)
-        self.assertAlmostEqual(spots["灵山梵宫"]["lat"], 31.4303, places=4)
-        self.assertAlmostEqual(spots["灵山梵宫"]["lon"], 120.0974, places=4)
+        self.assertAlmostEqual(spots["灵山大佛"]["lat"], 31.43125, places=5)
+        self.assertAlmostEqual(spots["灵山大佛"]["lon"], 120.09136, places=5)
+        self.assertAlmostEqual(spots["灵山梵宫"]["lat"], 31.43024, places=5)
+        self.assertAlmostEqual(spots["灵山梵宫"]["lon"], 120.09458, places=5)
 
     def test_recommended_routes_do_not_cross_map_zones(self):
         lingshan_route = app.recommend_route(180, "佛教文化")
@@ -573,7 +766,7 @@ class BackendHttpTest(unittest.TestCase):
         behavior_titles = {document["title"] for document in documents if document["sourceType"] == "behavior_excel"}
 
         self.assertGreaterEqual(len(full_text_documents), 2)
-        self.assertNotIn("官方资料包：长三角景区行为样本参考摘要", behavior_titles)
+        self.assertNotIn("官方资料包：灵山游客行为记录摘要", behavior_titles)
         self.assertFalse(behavior_result["available"])
         self.assertEqual(behavior_result["dataSource"]["type"], "behavior_table_pending")
 
@@ -583,7 +776,7 @@ class BackendHttpTest(unittest.TestCase):
         documents = app.build_official_knowledge_documents(app.parse_official_spot_records())
         behavior_titles = {document["title"] for document in documents if document["sourceType"] == "behavior_excel"}
 
-        self.assertIn("官方资料包：长三角景区行为样本参考摘要", behavior_titles)
+        self.assertIn("官方资料包：灵山游客行为记录摘要", behavior_titles)
         self.assertTrue(any("全量记录数" in document["content"] for document in documents))
 
     def test_recommended_lingshan_routes_prefer_official_templates(self):
@@ -645,15 +838,16 @@ class BackendHttpTest(unittest.TestCase):
         self.assertEqual(row["count"], summary["behaviorRecordCount"])
         self.assertIsNotNone(analytics)
         self.assertEqual(analytics["dataSource"]["type"], "behavior_table")
-        self.assertEqual(analytics["rowCount"], summary["behaviorRecordCount"])
+        self.assertEqual(analytics["rowCount"], 777)
+        self.assertEqual(analytics["rawBehaviorRecordCount"], summary["behaviorRecordCount"])
         self.assertEqual(analytics["matchedScenicRows"], 777)
-        self.assertEqual(analytics["analysisScope"], "长三角景区行为样本参考")
+        self.assertEqual(analytics["analysisScope"], "灵山游客行为记录")
 
         with app.get_connection() as connection:
             connection.execute("UPDATE import_metadata SET value = 'stale-signature' WHERE key LIKE 'behavior_visit_record:%'")
         stale_analytics = app.build_behavior_analytics_from_table()
         self.assertIsNotNone(stale_analytics)
-        self.assertEqual(stale_analytics["rowCount"], summary["behaviorRecordCount"])
+        self.assertEqual(stale_analytics["rowCount"], 777)
         self.assertFalse(stale_analytics["structuredTableCurrent"])
 
     def test_admin_low_confidence_chat_can_become_knowledge_draft(self):

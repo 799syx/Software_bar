@@ -32,9 +32,15 @@ tests/                   后端单元/HTTP 回归测试
 copy .env.example .env
 ```
 
-2. 填写 `.env` 中的 `DASHSCOPE_API_KEY` 和 `SCENIC_ADMIN_TOKEN`。
+2. 按需填写 `.env` 中的 `DASHSCOPE_API_KEY`。示例文件默认不放真实 Key；未配置大模型 Key 时，系统仍可使用本地结构化事实库和规则兜底演示。
 
-3. 一键启动演示：
+3. 启动前先检查 Python、npm 和端口：
+
+```bat
+start_demo.bat --check
+```
+
+4. 一键启动演示：
 
 ```bat
 start_demo.bat
@@ -46,7 +52,10 @@ start_demo.bat
 后端 API: http://127.0.0.1:8000
 Vue 前端: http://127.0.0.1:5173
 移动端:   http://127.0.0.1:8000/mobile/
+实时数字人: http://127.0.0.1:8010
 ```
+
+`start_demo.bat` 会同时尝试启动相邻目录 `..\portable_livetalking` 中已经训练好的 LiveTalking 数字人服务，默认使用 `data/avatars/test1`。如需切换到 `test2`，修改 `.env` 中的 `VITE_LIVETALKING_AVATAR=test2`，并在 cmd 中执行 `set LIVETALKING_AVATAR=test2 && start_demo.bat` 启动对应服务。
 
 弱网或答辩现场只想使用本地资料快速回答时：
 
@@ -62,7 +71,7 @@ start_demo.bat --fast
 python backend/app.py
 ```
 
-如果当前终端没有 `python`，可以使用项目脚本自动查找本机 Python：
+Windows 环境下请确保 Python 自带可用的 `sqlite3` 模块；如果当前终端没有 `python`，或某个 Python 环境缺少 `_sqlite3` DLL，优先使用项目脚本自动查找可用解释器：
 
 ```bat
 run_server.bat

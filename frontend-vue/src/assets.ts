@@ -1,4 +1,4 @@
-export const digitalHumanAvatar = "/assets/lingling-avatar-v2.png";
+export const digitalHumanAvatar = "/assets/lingling-guide-avatar.png";
 export const digitalHumanAvatarFallback = "/assets/lingling-avatar.png";
 export const scenicImageFallback = "/assets/scenic/fallback-scenic.svg";
 

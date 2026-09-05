@@ -82,10 +82,9 @@
 .visitor-grid {
   grid-template-areas:
     "source core core sentiment"
-    "kpi core core risk"
-    "trend attention records action";
+    "kpi core core risk";
   grid-template-columns: minmax(210px, 0.92fr) minmax(0, 1.06fr) minmax(0, 1.06fr) minmax(220px, 0.92fr);
-  grid-template-rows: minmax(116px, 0.76fr) minmax(168px, 1fr) minmax(126px, 0.72fr);
+  grid-template-rows: minmax(146px, 0.83fr) minmax(0, 1.17fr);
   gap: 8px;
   min-height: 0;
   overflow: hidden;
@@ -212,7 +211,7 @@
   }
 
   .visitor-grid {
-    grid-template-rows: minmax(104px, 0.72fr) minmax(148px, 1fr) minmax(112px, 0.68fr);
+    grid-template-rows: minmax(124px, 0.79fr) minmax(0, 1.21fr);
     gap: 7px;
   }
 
@@ -247,9 +246,7 @@
     grid-template-areas:
       "core core"
       "source sentiment"
-      "kpi risk"
-      "trend attention"
-      "records action";
+      "kpi risk";
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: auto;
   }
@@ -270,11 +267,7 @@
       "source"
       "kpi"
       "sentiment"
-      "risk"
-      "trend"
-      "attention"
-      "records"
-      "action";
+      "risk";
   }
 
   .visitor-gauge {
@@ -284,7 +277,7 @@
 
 /* Compact the visitor sentiment report center and advisory areas */
 .visitor-grid {
-  grid-template-rows: minmax(108px, 0.74fr) minmax(142px, 0.9fr) minmax(112px, 0.66fr);
+  grid-template-rows: auto;
 }
 
 .visitor-core-panel {
@@ -428,9 +421,8 @@
   .visitor-grid {
     grid-template-areas:
       "source core core sentiment"
-      "kpi core core risk"
-      "trend attention records action";
-    grid-template-rows: minmax(108px, 0.74fr) minmax(142px, 0.9fr) minmax(112px, 0.66fr);
+      "kpi core core risk";
+    grid-template-rows: minmax(146px, 0.83fr) minmax(0, 1.17fr);
   }
 
   .report-source-panel {
@@ -445,7 +437,7 @@
 
   .report-source-panel .source-line {
     grid-template-columns: 22px minmax(0, 1fr);
-    min-height: 25px;
+    min-height: 24px;
     gap: 5px;
   }
 
@@ -473,18 +465,43 @@
 
   .report-source-panel .source-line span {
     grid-column: 1 / -1;
-    font-size: 11px;
-    line-height: 1.22;
+    font-size: 10px;
+    line-height: 1.15;
     -webkit-line-clamp: 1;
   }
 
   .report-sentiment-panel {
-    gap: 6px;
+    gap: 5px;
     padding: 8px;
   }
 
+  .report-kpi-panel,
+  .report-risk-panel {
+    align-content: stretch;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .report-kpi-panel .visitor-kpi-grid {
+    align-self: stretch;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-kpi-panel .visitor-kpi-grid article {
+    align-content: center;
+    min-height: 0;
+  }
+
+  .report-risk-panel {
+    grid-auto-rows: minmax(0, 1fr);
+  }
+
+  .report-risk-panel article {
+    align-items: center;
+    min-height: 0;
+  }
+
   .report-sentiment-panel article {
-    min-height: 32px;
+    min-height: 28px;
   }
 
   .report-sentiment-panel small {
@@ -520,7 +537,8 @@
   .report-source-panel,
   .report-sentiment-panel {
     align-content: stretch;
-    grid-template-rows: auto repeat(3, minmax(0, 1fr));
+    grid-auto-rows: minmax(0, 1fr);
+    grid-template-rows: auto;
   }
 
   .report-source-panel .source-line,
@@ -528,7 +546,7 @@
     align-self: stretch;
     align-items: center;
     border-top: 1px solid rgba(47, 109, 82, 0.08);
-    padding-top: 6px;
+    padding-top: 5px;
   }
 
   .report-source-panel .source-line:first-of-type,
@@ -539,42 +557,42 @@
 
   .report-source-panel .source-line div {
     grid-template-columns: minmax(74px, auto) minmax(0, 1fr);
-    gap: 1px 8px;
+    gap: 0 7px;
   }
 
   .report-source-panel .source-line small {
-    font-size: 13px;
+    font-size: 12px;
   }
 
   .report-source-panel .source-line strong {
-    font-size: clamp(20px, 1.5vw, 26px);
+    font-size: clamp(18px, 1.32vw, 23px);
     text-align: right;
   }
 
   .report-source-panel .source-line span {
-    font-size: 12px;
-    line-height: 1.35;
-    -webkit-line-clamp: 2;
+    font-size: 11px;
+    line-height: 1.24;
+    -webkit-line-clamp: 1;
   }
 
   .report-sentiment-panel article {
-    grid-template-rows: auto 7px auto;
+    grid-template-rows: auto 6px auto;
   }
 
   .report-sentiment-panel span {
-    font-size: 15px;
-  }
-
-  .report-sentiment-panel strong {
-    font-size: clamp(20px, 1.55vw, 26px);
-  }
-
-  .report-sentiment-panel small {
     font-size: 13px;
   }
 
+  .report-sentiment-panel strong {
+    font-size: clamp(17px, 1.35vw, 22px);
+  }
+
+  .report-sentiment-panel small {
+    font-size: 12px;
+  }
+
   .report-sentiment-panel i {
-    height: 7px;
+    height: 6px;
   }
 
   .visitor-core-frame {

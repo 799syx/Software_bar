@@ -36,11 +36,24 @@ const nianhuaSpotCards = computed(() => {
 });
 const routePreferencePreview = computed(() => props.routeOptions.preferences.slice(0, 5));
 const heroSpot = computed(() => coreSpotCards.value[0] || null);
+const satisfactionScore = computed(() => {
+  const feedbackScore = Number(props.analytics.averageSatisfaction || 0);
+  const behaviorScore = Number(props.analytics.behaviorBaseline?.averageSatisfaction || 0);
+  return feedbackScore > 0 ? feedbackScore : behaviorScore;
+});
+const satisfactionDetail = computed(() => {
+  if (Number(props.analytics.feedbackCount || 0) > 0) return `${props.analytics.feedbackCount} 条游客反馈`;
+  if (satisfactionScore.value > 0) return "灵山游客行为评分";
+  return "暂无评分样本";
+});
 const homeStats = computed(() => [
-  { label: "开放景点", value: `${activeSpots.value.length}`, detail: "含核心区与拈花湾" },
-  { label: "知识条目", value: `${props.analytics.knowledgeCount || props.capabilities.knowledge.activeDocuments}`, detail: "参与智能问答召回" },
-  { label: "满意评分", value: Number(props.analytics.averageSatisfaction || 4.6).toFixed(1), detail: "演示反馈口径" },
-  { label: "路线时长", value: props.routeOptions.durations.slice(0, 4).join("/"), detail: "分钟可选" }
+  { label: "开放景点", value: `${props.analytics.spotCount}`, detail: "后台当前启用点位" },
+  { label: "知识条目", value: `${props.analytics.knowledgeCount}`, detail: "后台启用知识文档" },
+  {
+    label: "满意评分",
+    value: satisfactionScore.value > 0 ? satisfactionScore.value.toFixed(1) : "暂无",
+    detail: satisfactionDetail.value
+  }
 ]);
 const routeSlices = computed(() => {
   const names = activeSpots.value.map((spot) => spot.name);
@@ -137,11 +150,11 @@ onUnmounted(() => {
         </section>
 
         <section class="home-route-slices" data-reveal-scope>
-          <div class="home-section-head">
+          <div class="home-section-head home-nowrap-head">
             <p class="section-kicker home-reveal-title"><Route :size="16" /> 推荐游览主题</p>
-            <h2 class="home-reveal-title">把景区拆成可讲解、可执行的路线切片。</h2>
+            <h2 class="home-reveal-title home-nowrap-title">把景区拆成可讲解、可执行的路线切片。</h2>
             <p class="section-lead home-reveal-lead">
-              路线入口不替代地图页，而是帮助游客先理解“为什么这样走”。
+              帮助游客先理解“为什么这样走”
             </p>
           </div>
           <div class="route-slice-grid">
@@ -163,7 +176,6 @@ onUnmounted(() => {
             <div>
               <p class="section-kicker home-reveal-title"><Sparkles :size="16" /> 核心景点</p>
               <h2 class="home-reveal-title">灵山胜境核心游览节点</h2>
-              <p class="section-lead home-reveal-lead">图片按景点名称优先精确匹配，无法命中时再按标签和分区兜底。</p>
             </div>
             <button class="secondary-action compact home-reveal-card" style="--reveal-delay: 240ms" type="button" @click="emit('navigate', 'guide')">
               <Navigation2 :size="17" />
@@ -183,9 +195,9 @@ onUnmounted(() => {
         </section>
 
         <section v-if="nianhuaSpotCards.length" class="content-section nianhua-story-section" data-reveal-scope>
-          <div class="home-section-head">
+          <div class="home-section-head home-nowrap-head">
             <p class="section-kicker home-reveal-title"><MapPinned :size="16" /> 拈花湾分区</p>
-            <h2 class="home-reveal-title">拈花湾作为休闲小镇分区单独组织路线。</h2>
+            <h2 class="home-reveal-title home-nowrap-title">拈花湾作为休闲小镇分区单独组织路线。</h2>
             <p class="section-lead home-reveal-lead">街区、广场、花海和夜游点位保持独立，不与灵山核心礼佛线混成一条步行动线。</p>
           </div>
           <div class="home-zone-strip">
@@ -201,9 +213,6 @@ onUnmounted(() => {
           <div>
             <p class="section-kicker home-reveal-title"><Bot :size="16" /> 导览能力</p>
             <h2 class="home-reveal-title">游客端看路线，后台看运行，数字人负责把知识说清楚。</h2>
-            <p class="section-lead home-reveal-lead">
-              当前模型状态：{{ llmStatus.available ? "大模型可用" : "使用本地资料兜底" }}。知识库命中不足时，回答会提示资料来源和不确定性。
-            </p>
           </div>
           <div class="service-grid">
             <article class="service-card home-reveal-card" style="--reveal-delay: 240ms">

@@ -51,27 +51,6 @@ export function readInitialAdminTab(): AdminTab {
   return tab === "knowledge" || tab === "persona" || tab === "report" ? tab : "screen";
 }
 
-export function readSessionAdminToken() {
-  try {
-    localStorage.removeItem("scenic_admin_token");
-    return sessionStorage.getItem("scenic_admin_token") || "";
-  } catch {
-    return "";
-  }
-}
-
-export function rememberSessionAdminToken(token: string) {
-  try {
-    if (token) {
-      sessionStorage.setItem("scenic_admin_token", token);
-    } else {
-      sessionStorage.removeItem("scenic_admin_token");
-    }
-  } catch {
-    // Some kiosk browsers disable storage; the in-memory token still works.
-  }
-}
-
 export function clonePersona(persona: Persona): Persona {
   return { ...persona };
 }
@@ -129,6 +108,16 @@ export function distributionCount(distribution: Record<string, number>, keywords
     const normalized = label.toLowerCase();
     return keywords.some((keyword) => normalized.includes(keyword.toLowerCase())) ? total + Number(value || 0) : total;
   }, 0);
+}
+
+export function mergeNumericDistributions(...distributions: Array<Record<string, number> | undefined | null>) {
+  return distributions.reduce<Record<string, number>>((merged, distribution) => {
+    Object.entries(distribution || {}).forEach(([label, value]) => {
+      const count = Number(value || 0);
+      if (count) merged[label] = (merged[label] || 0) + count;
+    });
+    return merged;
+  }, {});
 }
 
 export function compactTrendLabel(label: string) {

@@ -13,6 +13,7 @@ type ViewName = "landing" | "home" | "guide" | "admin";
 const view = ref<ViewName>(readView());
 const scenicStore = useScenicStore();
 const { persona, llmStatus, ttsStatus, asrStatus, capabilities, analytics, routeOptions, spots, suggestions, connected } = storeToRefs(scenicStore);
+let refreshTimer: number | null = null;
 
 function readView(): ViewName {
   const hash = window.location.hash.replace("#", "").split("?")[0];
@@ -32,10 +33,17 @@ function syncFromHash() {
 onMounted(() => {
   window.addEventListener("hashchange", syncFromHash);
   void scenicStore.loadData();
+  refreshTimer = window.setInterval(() => {
+    void scenicStore.loadData({ silent: true });
+  }, 10000);
 });
 
 onUnmounted(() => {
   window.removeEventListener("hashchange", syncFromHash);
+  if (refreshTimer !== null) {
+    window.clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
 });
 </script>
 

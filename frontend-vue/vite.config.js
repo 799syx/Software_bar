@@ -1,9 +1,17 @@
 import { defineConfig, loadEnv } from "vite";
 import vue from "@vitejs/plugin-vue";
 import ts from "typescript";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const frontendRoot = dirname(fileURLToPath(import.meta.url));
+const workspaceRoot = resolve(frontendRoot, "..");
 
 function inlineEnvForRestrictedShell(command, mode) {
-  const env = loadEnv(mode, process.cwd(), "");
+  const env = {
+    ...loadEnv(mode, workspaceRoot, ""),
+    ...loadEnv(mode, frontendRoot, "")
+  };
   const envMap = {
     MODE: mode,
     BASE_URL: "/",

@@ -225,12 +225,24 @@
   overflow: hidden;
 }
 
-.app-shell.view-guide .map-experience.mode-map .local-map-canvas {
+.app-shell.view-guide .map-experience.mode-map .local-map-canvas.with-guide-image {
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 0;
   padding: 6px 8px;
+}
+
+.app-shell.view-guide .map-experience.mode-map .local-map-canvas.with-amap {
+  display: block;
+  height: 100%;
+  min-height: clamp(420px, calc(100dvh - var(--site-nav-height) - 170px), 680px);
+  padding: 0;
+}
+
+.app-shell.view-guide .map-experience.mode-map .real-amap-canvas {
+  height: 100%;
+  min-height: inherit;
 }
 
 .app-shell.view-guide .map-experience.mode-map .guide-map-svg {

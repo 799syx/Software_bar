@@ -20,8 +20,7 @@ const {
   fileToDataUrl, fileToVisionDataUrl, focusAmapZone, formatLatency, handleImageSelect, hasVerifiedAmapPosition,
   imageAnswer, imageAnswerLatencyMs, imageAnswerRefs, imageFileName, imageForSpot, imagePreview,
   imageQuestion, ImageUp, lastAnswerLatencyMs, lastAnswerRefs, loadAmapPlaceSearch, loadAmapScript,
-  loadImage, localIntro, locateCurrentPosition, LocateFixed, locationBusy, locationCode,
-  locationCodeFromUrl, locationText, MAP_FALLBACK_SLOTS, MAP_SPOT_LAYOUTS, mapLabelLines, mapLabelMetrics,
+  loadImage, localIntro, locationBusy, locationCode, locationText, MAP_FALLBACK_SLOTS, MAP_SPOT_LAYOUTS, mapLabelLines, mapLabelMetrics,
   mapLayoutForSpot, MapPin, mapPointForCoordinate, mapPointForSpot, mapSpotPoints, MAX_IMAGE_BYTES,
   mediaRecorder, MessageCircle, Mic, MicOff, mode, MoreHorizontal,
   mouthShape, Navigation2, nextTick, normalizedMapZone, normalizeSpotName, notice,
@@ -56,8 +55,17 @@ const {
             </div>
             <div class="basemap-selectors" aria-label="底图模式">
               <button type="button" :class="{ active: selectedBasemap === 'custom' }" @click="switchBasemap('custom')">景区图</button>
-              <button type="button" :class="{ active: selectedBasemap === 'amap' }" @click="switchBasemap('amap')">高德</button>
+              <button
+                type="button"
+                :class="{ active: selectedBasemap === 'amap' }"
+                :disabled="!AMAP_KEY"
+                :title="AMAP_KEY ? '切换到高德底图' : '未配置 VITE_AMAP_KEY，当前使用景区图'"
+                @click="switchBasemap('amap')"
+              >
+                高德
+              </button>
             </div>
+            <span v-if="!AMAP_KEY" class="basemap-config-hint">高德需配置 Key</span>
             <div class="route-selectors">
               <select v-model.number="routeDuration" aria-label="游览时长">
                 <option v-for="duration in routeOptions.durations" :key="duration" :value="duration">{{ duration }} 分钟</option>
@@ -73,15 +81,7 @@ const {
           </div>
         </div>
 
-        <div class="location-assist-strip" :class="`quality-${currentLocation.confidence}`">
-          <div class="location-status-copy">
-            <strong><LocateFixed :size="15" /> 现场定位</strong>
-            <span>{{ locationText }}</span>
-          </div>
-          <button class="secondary-action compact" type="button" :disabled="locationBusy" @click="locateCurrentPosition">
-            <LocateFixed :size="16" />
-            {{ locationBusy ? "定位中" : "GPS 定位" }}
-          </button>
+        <div class="location-assist-strip">
           <select v-model="selectedAnchorCode" aria-label="选择现场校准点" @change="useSelectedAnchor">
             <option value="">手动选择点位</option>
             <option v-for="spot in visibleLocationAnchors" :key="spot.id" :value="String(spot.locationCode || spot.id)">
@@ -98,7 +98,7 @@ const {
 
         <div class="local-map-canvas" :class="{ 'with-amap': useAmap, 'with-guide-image': !useAmap }">
           <div v-if="useAmap" ref="amapContainer" class="real-amap-canvas" role="img" aria-label="高德地图底图上的灵山胜境景点"></div>
-          <svg v-else class="guide-map-svg" viewBox="0 0 1334 1179" role="img" aria-label="灵山胜境景区导览图">
+          <svg v-else class="guide-map-svg" viewBox="0 0 1672 941" role="img" aria-label="灵山胜境景区导览图">
             <!-- The basemap is a scenic illustration supplied for the demo guide experience. -->
             <defs>
               <linearGradient id="mapLakeGradient" x1="0" x2="1" y1="0" y2="1">
@@ -131,7 +131,15 @@ const {
               </filter>
             </defs>
 
-            <image class="guide-map-basemap" href="/assets/scenic/guide-map.png" x="0" y="0" width="1334" height="1179" preserveAspectRatio="xMidYMid meet" />
+            <image
+              class="guide-map-basemap"
+              :href="activeZone === 'nianhua' ? '/assets/scenic/nianhua-handdrawn-map.png' : '/assets/scenic/lingshan-handdrawn-map.png'"
+              x="0"
+              y="0"
+              width="1672"
+              height="941"
+              preserveAspectRatio="xMidYMid meet"
+            />
             <ellipse cx="508" cy="566" rx="438" ry="46" class="map-base-shadow" />
             <path class="map-land-side" d="M64 106 L924 76 Q958 278 896 500 Q536 602 148 526 Q62 330 64 106 Z" />
             <path class="map-land-top" d="M64 78 L924 48 Q958 250 896 472 Q536 574 148 498 Q62 302 64 78 Z" />
@@ -156,7 +164,7 @@ const {
             <g
               v-for="(spot, index) in mapSpotPoints"
               :key="spot.id"
-              :class="['local-spot-marker', { selected: selectedSpotId === spot.id, routed: spot.inRoute, dimmed: routeResult && !spot.inRoute }]"
+              :class="['local-spot-marker', { selected: selectedSpotId === spot.id, routed: spot.inRoute, dimmed: routeResult && !spot.inRoute, 'map-visible': spot.mapVisible }]"
               :transform="`translate(${spot.x} ${spot.y})`"
               :aria-label="spot.name"
               role="button"
@@ -169,8 +177,8 @@ const {
               <line class="local-spot-label-line" x1="0" y1="0" :x2="spot.labelLineX" :y2="spot.labelLineY" />
               <ellipse class="marker-shadow" cx="7" cy="26" rx="28" ry="11" />
               <path class="marker-side" d="M-18 0 L0 18 L18 0 L18 18 L0 36 L-18 18 Z" />
-              <circle class="marker-pulse" r="28" />
-              <circle class="marker-top" r="19" />
+              <circle class="marker-pulse" r="31" />
+              <circle class="marker-top" r="22" />
               <text v-if="spot.pinLabel" class="local-pin-number" text-anchor="middle" dominant-baseline="central">
                 {{ spot.pinLabel }}
               </text>
@@ -182,19 +190,19 @@ const {
                 :height="spot.labelHeight"
                 rx="8"
               />
-              <text class="local-spot-label" :x="spot.labelX" :y="spot.labelY" :text-anchor="spot.labelAnchor">
+              <text class="local-spot-label" :x="spot.labelX" :y="spot.labelY" :text-anchor="spot.labelAnchor" dominant-baseline="middle">
                 <tspan
                   v-for="(line, lineIndex) in spot.labelLines"
                   :key="`${spot.id}-${lineIndex}`"
                   :x="spot.labelX"
-                  :dy="lineIndex === 0 ? 0 : 17"
+                  :dy="lineIndex === 0 ? 0 : spot.labelLineStep"
                 >
                   {{ line }}
                 </tspan>
               </text>
             </g>
 
-            <g class="local-current-location" :transform="`translate(${currentLocationPoint.x} ${currentLocationPoint.y})`">
+            <g v-if="currentLocation.source !== 'demo'" class="local-current-location" :transform="`translate(${currentLocationPoint.x} ${currentLocationPoint.y})`">
               <circle r="22" />
               <circle r="7" />
               <text x="26" y="6">当前位置</text>
@@ -208,8 +216,7 @@ const {
           <header class="assistant-panel-header">
             <div>
               <p class="section-kicker"><Sparkles :size="15" /> 侧边助手</p>
-              <h2>{{ persona.name }}导览</h2>
-              <span>{{ stage === "speaking" ? "正在讲解" : stage === "thinking" ? "生成讲解中" : stage === "listening" ? "正在听" : "待命" }} · {{ visibleSpots.length }} 个景点</span>
+              <h2>数字僧人实时对话</h2>
             </div>
             <div class="assistant-header-actions">
               <button class="ghost-action compact icon-only" type="button" :aria-label="assistantCollapsed ? '展开助手' : '收起助手'" @click="assistantCollapsed = !assistantCollapsed">

@@ -15,7 +15,7 @@ const landingSpotDescription =
   "景区核心地标、祈福朝圣与佛教造像艺术展示，适合游客登顶抱佛脚、俯瞰太湖并了解佛教手印寓意。右手施无畏印，寓意除却众生痛苦；左手施与愿印，寓意赐予众生欢乐。216级登云道暗合108烦恼与108愿望。";
 const landingSpotLocation =
   "祥符禅寺北侧，秦履峰南侧，矗立在景区最高处，是整个灵山胜境的核心地标，可俯瞰整个景区及太湖风光。";
-const landingGuideStatus = "灵童 · 浏览器语音";
+const landingGuideStatus = "和尚 · 浏览器语音";
 </script>
 
 <template>

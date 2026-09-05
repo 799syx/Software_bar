@@ -2,6 +2,25 @@ const DEFAULT_API_BASE = location.protocol.startsWith("http") ? location.origin 
 const params = new URLSearchParams(location.search);
 const API_BASE = (params.get("api") || localStorage.getItem("lingshan_mobile_api") || DEFAULT_API_BASE).replace(/\/$/, "");
 
+const SPOT_IMAGE_OVERRIDES = [
+  ["灵山大照壁", "/assets/scenic/photos/lingshan-screen-wall.jpg"],
+  ["五明桥", "/assets/scenic/photos/five-brightness-bridge.png"],
+  ["佛足坛", "/assets/scenic/photos/buddha-foot-altar.png"],
+  ["五智门", "/assets/scenic/photos/five-wisdom-gate.jpg"],
+  ["菩提大道", "/assets/scenic/photos/bodhi-avenue.png"],
+  ["降魔浮雕", "/assets/scenic/photos/demon-subduing-relief.png"],
+  ["阿育王柱", "/assets/scenic/photos/ashoka-pillar.png"],
+  ["百子戏弥勒", "/assets/scenic/photos/children-mitreya.png"],
+  ["百子弥勒戏", "/assets/scenic/photos/children-mitreya.png"],
+  ["佛教文化博览馆", "/assets/scenic/photos/buddhist-culture-museum.jpg"],
+  ["佛教文化博物馆", "/assets/scenic/photos/buddhist-culture-museum.jpg"],
+  ["梵天花海", "/assets/scenic/photos/brahma-flower-sea.png"],
+  ["曼飞龙塔", "/assets/scenic/photos/manfeilong-pagoda.png"],
+  ["无尽意斋", "/assets/scenic/photos/wujinyi-zhai.png"],
+  ["拈花广场", "/assets/scenic/photos/nianhua-plaza.png"],
+  ["拈花堂", "/assets/scenic/photos/nianhua-hall.png"]
+];
+
 const FALLBACK_SPOTS = [
   {
     id: 1,
@@ -113,11 +132,17 @@ function selectedSpot() {
   return state.spots.find((spot) => spot.id === state.selectedSpotId) || state.spots[0] || FALLBACK_SPOTS[0];
 }
 
+function isLegacyPlaceholderImage(image) {
+  return /^\/?assets\/spot-[\w-]+\.svg$/.test(image || "");
+}
+
 function imageForSpot(spot) {
   if (!spot) return "/assets/scenic/photos/lingshan-grand-buddha.jpg";
-  if (spot.image && spot.image.startsWith("/")) return spot.image;
-  if (spot.image && spot.image.startsWith("assets/")) return `/${spot.image}`;
+  if (spot.image && spot.image.startsWith("/") && !isLegacyPlaceholderImage(spot.image)) return spot.image;
+  if (spot.image && spot.image.startsWith("assets/") && !isLegacyPlaceholderImage(spot.image)) return `/${spot.image}`;
   const name = spot.name || "";
+  const override = SPOT_IMAGE_OVERRIDES.find(([keyword]) => name.includes(keyword));
+  if (override) return override[1];
   if (name.includes("九龙")) return "/assets/scenic/photos/nine-dragons-bath.jpg";
   if (name.includes("梵宫")) return "/assets/scenic/photos/brahma-palace.jpg";
   if (name.includes("五印")) return "/assets/scenic/photos/five-seal-mandala.jpg";

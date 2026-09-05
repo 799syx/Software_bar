@@ -17,68 +17,154 @@ def operation_counts(connection_factory, today_ts, week_ts):
         }
 
 
-def operations_overview(connection_factory, today_ts, week_ts):
+def percent_number(value, total):
+    if not total:
+        return 0
+    return int(round((float(value or 0) / max(float(total or 0), 1.0)) * 100))
+
+
+def behavior_operations_overview(behavior):
+    row_count = int(behavior.get("rowCount") or behavior.get("behaviorRecordCount") or 0)
+    if not behavior.get("available") or not row_count:
+        return None
+
+    average_satisfaction = float(behavior.get("averageSatisfaction") or 0)
+    satisfaction_index = clamp_operation_value((average_satisfaction / 5) * 100, 0, 100)
+    matched_rows = int(behavior.get("matchedScenicRows") or row_count)
+    average_stay = float(behavior.get("averageStayDuration") or 0)
+    average_group = float(behavior.get("averageGroupSize") or 0)
+    top_attractions = behavior.get("topAttractions") or []
+    type_distribution = behavior.get("typeDistribution") or []
+    satisfaction_trend = behavior.get("satisfactionTrend") or []
+    consumption = behavior.get("consumptionBreakdown") or []
+    latest_trend = satisfaction_trend[-1] if satisfaction_trend else {}
+    latest_count = int(latest_trend.get("count") or 0)
+    max_month_count = max([int(item.get("count") or 0) for item in satisfaction_trend] + [latest_count, 1])
+    latest_load = clamp_operation_value(percent_number(latest_count, max_month_count), 0, 100)
+    top_name = top_attractions[0][0] if top_attractions else "暂无热点"
+    source = behavior.get("dataSource") or {}
+
+    return {
+        "available": True,
+        "generatedAt": int(time.time()),
+        "sourceType": "behavior_visit_record",
+        "sourceDescription": "由 behavior_visit_record 数据库表聚合，上传新的行为 Excel 后自动更新。",
+        "core": {
+            "title": "游客行为数据库",
+            "keyArea": str(top_name),
+            "dutyStatus": f"已入库 {row_count:,} 条",
+            "summary": f"当前大屏基于 {row_count:,} 条灵山游客行为记录，平均满意度 {average_satisfaction:.2f}/5.0，覆盖停留、消费、客群与景区偏好分析。",
+        },
+        "metrics": [
+            {"key": "sample", "label": "灵山记录", "value": row_count, "unit": "条", "detail": "已筛选灵山相关游客行为明细"},
+            {"key": "satisfaction", "label": "满意指数", "value": satisfaction_index, "unit": "分", "detail": f"{average_satisfaction:.2f}/5.0 平均满意度"},
+            {"key": "stay", "label": "平均停留", "value": average_stay, "unit": "小时", "detail": "灵山游客平均停留时长"},
+            {"key": "matched", "label": "筛选记录", "value": matched_rows, "unit": "条", "detail": "命中灵山、拈花湾或灵山大佛"},
+        ],
+        "stations": [
+            {
+                "key": f"hot_{index}",
+                "name": str(name),
+                "role": "热门景区",
+                "status": f"{int(count):,} 条记录",
+                "value": int(count),
+            }
+            for index, (name, count) in enumerate(top_attractions[:3])
+        ],
+        "resources": [
+            {
+                "key": f"spend_{index}",
+                "label": str(item.get("name") or "消费"),
+                "value": f"{float(item.get('value') or 0):.2f}",
+                "detail": "人均消费字段均值",
+            }
+            for index, item in enumerate(consumption[:5])
+        ],
+        "flow": [
+            {"label": str(name), "value": int(count)}
+            for name, count in type_distribution[:5]
+        ],
+        "trend": [
+            {"label": str(item.get("date") or ""), "value": clamp_operation_value((float(item.get("score") or 0) / 5) * 100, 0, 100)}
+            for item in satisfaction_trend[-6:]
+        ],
+        "briefings": [
+            {"intent": "数据源", "value": str(source.get("file") or behavior.get("sampleSourceFile") or ""), "message": "当前大屏使用已入库行为数据"},
+            {"intent": "样本量", "value": f"{row_count:,}条", "message": "上传新 Excel 后会全量替换数据库行为明细"},
+            {"intent": "满意度", "value": f"{average_satisfaction:.2f}分", "message": "来自 satisfaction 字段聚合"},
+            {"intent": "停留", "value": f"{average_stay:.2f}小时", "message": f"平均同行人数 {average_group:.2f} 人"},
+            {"intent": "热度", "value": f"{latest_load}%", "message": "按最近月份样本量折算"},
+        ],
+        "dataSource": {
+            "method": "behavior_visit_record_v1",
+            "table": "behavior_visit_record",
+            "sourceFile": source.get("file") or behavior.get("sampleSourceFile") or "",
+            "rowCount": row_count,
+            "matchedScenicRows": matched_rows,
+        },
+    }
+
+
+def operations_overview(connection_factory, today_ts, week_ts, behavior=None):
+    behavior_overview = behavior_operations_overview(behavior or {})
+    if behavior_overview:
+        return behavior_overview
+
     counts = operation_counts(connection_factory, today_ts, week_ts)
     question_count = counts["questionCount"]
     route_count = counts["routeCount"]
     today_service_count = counts["todayQuestions"] + counts["todayRoutes"]
     week_service_count = counts["weekQuestions"] + counts["weekRoutes"]
-    base_load = max(today_service_count, question_count + route_count, 1)
-    capacity_rate = clamp_operation_value(52 + (base_load % 36), 48, 92)
-    passage_index = clamp_operation_value(96 - capacity_rate * 0.32, 58, 92)
-    patrol_coverage = clamp_operation_value(72 + (week_service_count % 18), 68, 96)
-    device_health = clamp_operation_value(94 - min(question_count % 18, 18), 76, 98)
-    duty_status = "高位值守" if capacity_rate >= 86 else "需关注" if capacity_rate >= 76 else "正常"
+    total_service_count = question_count + route_count
+    duty_status = "有新增服务" if today_service_count else "暂无今日新增"
 
     return {
         "available": True,
         "generatedAt": int(time.time()),
-        "sourceType": "derived_from_service_records",
-        "sourceDescription": "由问答记录与路线推荐记录推导的演示运营概览。",
+        "sourceType": "service_records",
+        "sourceDescription": "由 chat_record 与 route_record 数据库表聚合的服务运营概览。",
         "core": {
-            "title": "灵山胜境",
-            "keyArea": "主轴线",
+            "title": "数字人服务记录",
+            "keyArea": "问答 / 路线",
             "dutyStatus": duty_status,
-            "summary": "以园区承载、通行动线、设备健康和现场值守为核心视角，监控景区当日运行状态。",
+            "summary": f"当前运营概览基于 {question_count:,} 条问答记录与 {route_count:,} 条路线记录聚合；未接入现场客流、设备或巡检传感器时，不生成现场状态估算。",
         },
         "metrics": [
-            {"key": "capacity", "label": "园区承载", "value": capacity_rate, "unit": "%", "detail": "主游线当前负载"},
-            {"key": "passage", "label": "通行指数", "value": passage_index, "unit": "分", "detail": "入口与主轴线顺畅度"},
-            {"key": "patrol", "label": "巡检覆盖", "value": patrol_coverage, "unit": "%", "detail": "重点片区巡检完成度"},
-            {"key": "device", "label": "设备健康", "value": device_health, "unit": "%", "detail": "闸机、屏显与广播状态"},
+            {"key": "questions", "label": "问答记录", "value": question_count, "unit": "条", "detail": "chat_record 表累计记录"},
+            {"key": "routes", "label": "路线记录", "value": route_count, "unit": "条", "detail": "route_record 表累计记录"},
+            {"key": "today", "label": "今日服务", "value": today_service_count, "unit": "次", "detail": "今日问答与路线生成合计"},
+            {"key": "week", "label": "本周服务", "value": week_service_count, "unit": "次", "detail": "本周问答与路线生成合计"},
         ],
         "stations": [
-            {"key": "north_gate", "name": "北入口", "role": "入园通行", "status": f"负载 {capacity_rate}%", "value": capacity_rate},
-            {"key": "main_axis", "name": "主轴线", "role": "客流疏导", "status": f"通行 {passage_index} 分", "value": passage_index},
-            {"key": "service_center", "name": "服务中心", "role": "现场值守", "status": f"巡检 {patrol_coverage}%", "value": patrol_coverage},
+            {"key": "qa", "name": "数字人问答", "role": "游客咨询", "status": f"{question_count:,} 条记录", "value": question_count},
+            {"key": "route", "name": "路线推荐", "role": "个性化游线", "status": f"{route_count:,} 条记录", "value": route_count},
+            {"key": "today", "name": "今日服务", "role": "当日触达", "status": f"{today_service_count:,} 次", "value": today_service_count},
         ],
         "resources": [
-            {"key": "gate", "label": "闸机状态", "value": f"{passage_index}%", "detail": "入口通行能力保持稳定"},
-            {"key": "broadcast", "label": "广播联动", "value": "正常", "detail": "服务中心与主轴线可联动播报"},
-            {"key": "emergency", "label": "应急值守", "value": duty_status, "detail": "高峰片区保留机动处置能力"},
+            {"key": "chat", "label": "问答表", "value": f"{question_count:,}", "detail": "chat_record 后端接口聚合"},
+            {"key": "route", "label": "路线表", "value": f"{route_count:,}", "detail": "route_record 后端接口聚合"},
+            {"key": "service", "label": "服务合计", "value": f"{total_service_count:,}", "detail": "问答与路线记录合计"},
         ],
         "flow": [
-            {"label": "入口", "value": capacity_rate},
-            {"label": "主轴", "value": passage_index},
-            {"label": "巡检", "value": patrol_coverage},
-            {"label": "设备", "value": device_health},
-            {"label": "出口", "value": max(56, 100 - capacity_rate + 38)},
+            {"label": "问答", "value": question_count},
+            {"label": "路线", "value": route_count},
+            {"label": "今日", "value": today_service_count},
+            {"label": "本周", "value": week_service_count},
         ],
         "trend": [
-            {"label": "08:00", "value": max(42, capacity_rate - 18)},
-            {"label": "10:00", "value": max(48, capacity_rate - 6)},
-            {"label": "12:00", "value": capacity_rate},
-            {"label": "14:00", "value": min(96, capacity_rate + 8)},
-            {"label": "16:00", "value": max(52, capacity_rate - 10)},
+            {"label": "问答", "value": question_count},
+            {"label": "路线", "value": route_count},
+            {"label": "今日", "value": today_service_count},
+            {"label": "本周", "value": week_service_count},
         ],
         "briefings": [
-            {"intent": "入口", "value": f"{passage_index}分", "message": "北入口闸机与安检口保持顺畅"},
-            {"intent": "主游线", "value": f"{capacity_rate}%", "message": "主轴线客流进入可控高位"},
-            {"intent": "巡检", "value": f"{patrol_coverage}%", "message": "核心片区巡检任务按计划推进"},
-            {"intent": "设备", "value": f"{device_health}%", "message": "广播、屏显、应急联动链路正常"},
+            {"intent": "问答", "value": f"{question_count:,}条", "message": "来自 chat_record 表的真实问答记录"},
+            {"intent": "路线", "value": f"{route_count:,}条", "message": "来自 route_record 表的真实路线生成记录"},
+            {"intent": "今日", "value": f"{today_service_count:,}次", "message": "按 created_at 统计今日服务记录"},
+            {"intent": "本周", "value": f"{week_service_count:,}次", "message": "按 created_at 统计本周服务记录"},
         ],
         "dataSource": {
-            "method": "derived_operations_v1",
+            "method": "service_records_v1",
             "service": "chat_record / route_record",
             "questionCount": question_count,
             "routeCount": route_count,

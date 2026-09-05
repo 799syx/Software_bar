@@ -1,6 +1,8 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { safeApiGet } from "../api";
+import { resolvePresetFromPersona } from "../config/liveTalkingPresets";
+import { applyLiveTalkingPreset, personaPresetLocked } from "../composables/useLiveTalkingAvatar";
 import {
   fallbackAnalytics,
   fallbackAsrStatus,
@@ -27,8 +29,8 @@ export const useScenicStore = defineStore("scenic", () => {
 
   const connected = computed(() => !loading.value && (llmStatus.value.available || analytics.value.spotCount > 0));
 
-  async function loadData() {
-    loading.value = true;
+  async function loadData(options: { silent?: boolean } = {}) {
+    if (!options.silent) loading.value = true;
     const [spotData, nextPersona, nextLlm, nextTts, nextAsr, nextCapabilities, nextAnalytics, nextSuggestions, nextRouteOptions] = await Promise.all([
       safeApiGet<{ items: ScenicSpot[] }>("/api/spots", { items: fallbackSpots }),
       safeApiGet<Persona>("/api/persona", fallbackPersona),
@@ -36,13 +38,16 @@ export const useScenicStore = defineStore("scenic", () => {
       safeApiGet<TtsStatus>("/api/tts/status", fallbackTtsStatus),
       safeApiGet<AsrStatus>("/api/asr/status", fallbackAsrStatus),
       safeApiGet<SystemCapabilities>("/api/system/capabilities", fallbackCapabilities),
-      Promise.resolve(fallbackAnalytics),
+      safeApiGet<AnalyticsOverview>("/api/analytics/overview", fallbackAnalytics),
       safeApiGet<{ items: string[] }>("/api/chat/suggestions", { items: suggestions.value }),
       safeApiGet<RouteOptions>("/api/routes/options", fallbackRouteOptions)
     ]);
 
     spots.value = spotData.items.length ? spotData.items : fallbackSpots;
     persona.value = nextPersona;
+    if (!personaPresetLocked.value) {
+      applyLiveTalkingPreset(resolvePresetFromPersona(nextPersona));
+    }
     llmStatus.value = nextLlm;
     ttsStatus.value = nextTts;
     asrStatus.value = nextAsr;

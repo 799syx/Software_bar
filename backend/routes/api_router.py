@@ -233,6 +233,18 @@ def post_public_data_reimport(handler, _parsed):
     core.json_response(handler, core.reimport_public_data(bool(payload.get("importBehaviorRows"))))
 
 
+def post_behavior_upload_xlsx(handler, _parsed):
+    payload = core.read_json(handler)
+    file_name = re.sub(r"[\\/:*?\"<>|]+", "_", str(payload.get("fileName") or "behavior.xlsx")).strip() or "behavior.xlsx"
+    if not file_name.lower().endswith(".xlsx"):
+        raise ValueError("only .xlsx files are supported")
+    try:
+        content = decode_data_url(payload.get("dataUrl"))
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("invalid xlsx dataUrl") from exc
+    core.json_response(handler, core.import_behavior_excel_upload(file_name, content))
+
+
 def post_admin_spot(handler, _parsed):
     core.json_response(handler, core.create_spot(core.read_json(handler)), 201)
 
@@ -371,6 +383,7 @@ ROUTES = {
         exact("/api/system/capabilities", get_system_capabilities),
         exact("/api/chat/suggestions", get_chat_suggestions),
         exact("/api/routes/options", get_route_options),
+        exact("/api/analytics/overview", get_analytics_overview),
         exact("/api/admin/spots", get_admin_spots),
         exact("/api/admin/knowledge", get_admin_knowledge),
         exact("/api/admin/chat-records", get_admin_chat_records),
@@ -388,6 +401,7 @@ ROUTES = {
         exact("/api/tts/synthesize", post_tts_synthesize),
         exact("/api/asr/transcribe", post_asr_transcribe),
         exact("/api/admin/public-data/reimport", post_public_data_reimport),
+        exact("/api/admin/behavior/upload-xlsx", post_behavior_upload_xlsx),
         exact("/api/admin/spots", post_admin_spot),
         exact("/api/admin/knowledge/upload-docx", post_knowledge_upload_docx),
         exact("/api/admin/knowledge/from-chat", post_knowledge_from_chat),

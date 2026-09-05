@@ -1,14 +1,49 @@
 import json
+import os
 import socket
 import time
 import urllib.error
 import urllib.request
+
+BROKEN_LOCAL_PROXY_TARGETS = {
+    "http://127.0.0.1:9",
+    "https://127.0.0.1:9",
+    "http://localhost:9",
+    "https://localhost:9",
+}
 
 
 def chat_completions_url(base_url):
     if base_url.endswith("/chat/completions"):
         return base_url
     return f"{base_url.rstrip('/')}/chat/completions"
+
+
+def env_flag(name):
+    value = os.getenv(name)
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on", "enabled"}
+
+
+def normalize_proxy_url(value):
+    return str(value or "").strip().rstrip("/").lower()
+
+
+def should_bypass_proxy():
+    if env_flag("SCENIC_LLM_FORCE_PROXY"):
+        return False
+    if env_flag("SCENIC_LLM_DISABLE_PROXY"):
+        return True
+    return any(
+        normalize_proxy_url(os.getenv(name)) in BROKEN_LOCAL_PROXY_TARGETS
+        for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy")
+    )
+
+
+def open_llm_request(request, timeout):
+    if should_bypass_proxy():
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        return opener.open(request, timeout=timeout)
+    return urllib.request.urlopen(request, timeout=timeout)
 
 
 def call_openai_compatible_llm(messages, config, retry_count=2):
@@ -30,7 +65,7 @@ def call_openai_compatible_llm(messages, config, retry_count=2):
     last_error = None
     for attempt in range(retry_count):
         try:
-            with urllib.request.urlopen(request, timeout=config["timeout"]) as response:
+            with open_llm_request(request, timeout=config["timeout"]) as response:
                 data = json.loads(response.read().decode("utf-8"))
             break
         except urllib.error.HTTPError as exc:

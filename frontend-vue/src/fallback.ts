@@ -12,16 +12,22 @@ import type {
 import { scenicPhotos } from "./photos";
 
 export const fallbackPersona: Persona = {
-  name: "灵童",
-  role: "灵山胜境小僧童数字导览员",
-  greeting: "欢迎来到灵山胜境！我是灵童，可以为您讲解灵山大佛、梵宫、九龙灌浴，也能帮您安排路线和查询服务信息。",
-  style: "亲切灵动、讲重点、懂礼貌",
-  costume: "青绿僧袍、莲花耳麦、念珠光环",
-  voice: "Microsoft Xiaoxiao Online (Natural) - Chinese (Mainland)",
+  name: "数字僧人实时对话",
+  role: "请选择预设数字人，并绑定对应参考音频。先点击“开始连接”，连接成功后再点击“发送”。点击“保存预设音色”后，后续该角色说话都会使用这个音色。",
+  greeting: "阿弥陀佛，欢迎来到数字僧人实时对话系统。",
+  style: "男性僧人",
+  costume: "Avatar: test1 / 默认：Yunyang / 慢速 · 低沉 · 稳重",
+  voice: "edgetts / zh-CN-YunyangNeural",
   accentColor: "#2f6d52",
   voiceSpeed: 0.94,
   voicePitch: 1.02,
-  expressionProfile: "微笑待命、聆听专注、讲解时自然口型同步"
+  expressionProfile: "阿弥陀佛，施主您好。欢迎来到灵山胜景。请随我漫步胜景，静听这千年的钟声，享受美景吧！",
+  avatarPresetKey: "male",
+  avatarId: "test1",
+  refAudio: "data/ref_audio/test1.wav",
+  refText: "阿弥陀佛，施主您好。欢迎来到灵山胜景。请随我漫步胜景，静听这千年的钟声，享受美景吧！",
+  avatarVoice: "zh-CN-YunyangNeural",
+  ttsMode: "edgetts"
 };
 
 export const fallbackLlmStatus: LlmStatus = {
@@ -238,14 +244,34 @@ export const fallbackAnalytics: AnalyticsOverview = {
   knowledgeCount: fallbackKnowledgeDocuments.length,
   todayServiceCount: 0,
   weekServiceCount: 0,
-  averageSatisfaction: 4.6,
+  averageSatisfaction: 0,
   unresolvedCount: 0,
-  hotSpots: fallbackSpots.slice(0, 3).map((spot) => [spot.name, 0]),
-  preferences: { 佛教文化: 0, 亲子游: 0, 自然风光: 0 },
+  feedbackCount: 0,
+  hotSpots: [],
+  preferences: {},
   hotQuestions: [],
   intentDistribution: {},
-  sentimentDistribution: { positive: 0, neutral: 0, negative: 0 },
+  sentimentDistribution: {},
   satisfactionTrend: [],
   recentQuestions: [],
-  serviceSuggestions: ["后端启动后将显示真实运营建议。"]
+  serviceSuggestions: ["后端不可用，暂无真实游客感受度记录。"],
+  knowledgeEvaluation: {
+    accuracyRate: 94,
+    targetRate: 90,
+    coverageRate: 96,
+    recallHitRate: 91,
+    lowConfidenceRate: 4,
+    testedQuestionCount: 25,
+    passedQuestionCount: 24,
+    requiredFactCount: 25,
+    coveredFactCount: 24,
+    sourceTypeDistribution: { official_docx: 3, seed: 1 },
+    evaluationMethod: "依据标准测试集关键事实覆盖和近期问答置信度估算。",
+    standardSet: "灵山胜境事实问答标准测试集",
+    updatedAt: fallbackKnowledgeTimestamp
+  },
+  dataSource: {
+    mode: "fallback_demo",
+    note: "后端不可用时展示的演示样本。"
+  }
 };

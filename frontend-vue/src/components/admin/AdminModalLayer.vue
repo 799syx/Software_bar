@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import type { AnalyticsOverview } from "../../types";
 import type { useAdminView } from "./useAdminView";
 
 type AdminViewContext = ReturnType<typeof useAdminView>;
 
 const props = defineProps<{
   ctx: AdminViewContext;
-  analytics: AnalyticsOverview;
 }>();
 
 const {
@@ -27,17 +25,21 @@ const {
   formatNumber,
   isActionBusy,
   knowledgeForm,
-  lowConfidenceRecords,
   modal,
   openKnowledgeEditor,
   openSpotManager,
   personaForm,
+  reportAverageSatisfaction,
+  reportFeedbackTotal,
+  reportLowConfidenceRecords,
+  reportSatisfactionSourceLabel,
   saveKnowledge,
   savePersona,
   saveSpot,
   selectedKnowledge,
   selectedSpot,
   selectedSpotId,
+  shouldShowRecordConfidence,
   sourceTypeLabel,
   spotForm,
   spotImagePreview,
@@ -159,7 +161,7 @@ const {
           </div>
           <aside>
             <span>{{ record.intent || "导览咨询" }}</span>
-            <small>置信度 {{ Math.round((record.confidence || 0) * 100) }}%</small>
+            <small v-if="shouldShowRecordConfidence(record)">置信度 {{ Math.round((record.confidence || 0) * 100) }}%</small>
             <button v-if="(record.confidence || 0) < 0.65" class="ghost-action compact" type="button" :class="convertingChatId === record.id ? 'action-loading' : actionStatusClass('convertChat')" :disabled="convertingChatId === record.id" @click="convertRecordToKnowledge(record)">
               {{ convertingChatId === record.id ? "生成中" : actionStatus.convertChat === "error" ? "生成失败" : "转知识" }}
             </button>
@@ -179,6 +181,7 @@ const {
       </form>
 
       <div v-else class="modal-list">
+        <p v-if="!feedbackRecords.length" class="knowledge-empty-note">暂无真实游客评分反馈。</p>
         <article v-for="record in feedbackRecords" :key="record.id" class="record-row">
           <div>
             <strong>{{ record.question }}</strong>
@@ -192,7 +195,7 @@ const {
         <article class="data-source-note">
           <strong>服务记录口径</strong>
           <span>当前展示系统问答、游客反馈和知识沉淀记录。</span>
-          <small>低置信问题 {{ formatNumber(lowConfidenceRecords.length) }} 条；平均满意度 {{ Number(analytics.averageSatisfaction || 4.6).toFixed(1) }} 分。</small>
+          <small>真实反馈 {{ formatNumber(reportFeedbackTotal) }} 条；低置信问题 {{ formatNumber(reportLowConfidenceRecords.length) }} 条；平均满意度 {{ reportAverageSatisfaction.toFixed(1) }} 分（{{ reportSatisfactionSourceLabel }}）。</small>
         </article>
       </div>
     </div>

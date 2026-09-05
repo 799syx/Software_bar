@@ -11,6 +11,13 @@ SYNONYM_GROUPS = [
     ("拍照", "打卡", "观景", "出片"),
 ]
 
+DOMAIN_TERMS = {
+    "ticket": ("门票", "票价", "成人票", "半价票", "免票", "联票", "观光车", "价格", "优惠"),
+    "performance": ("表演", "演出", "场次", "吉祥颂", "九龙灌浴", "时间", "几点"),
+    "route": ("路线", "游线", "怎么逛", "行程", "亲子", "历史文化", "自然风光", "拍照打卡"),
+    "service": ("停车", "服务中心", "无障碍", "轮椅", "迷路", "安全", "身体不适", "交通"),
+}
+
 
 def normalize_text(value):
     return str(value or "").strip().lower()
@@ -45,6 +52,19 @@ def expand_query_terms(question, terms):
     return list(dict.fromkeys(expanded))
 
 
+def query_domain(question):
+    normalized = normalize_text(question)
+    if any(term in normalized for term in ("门票", "票价", "多少钱", "价格", "半价", "免票", "联票", "观光车")):
+        return "ticket"
+    if any(term in normalized for term in ("表演", "演出", "场次", "吉祥颂", "几点", "什么时候")):
+        return "performance"
+    if any(term in normalized for term in ("路线", "怎么逛", "行程", "亲子", "历史文化", "自然风光", "拍照", "打卡")):
+        return "route"
+    if any(term in normalized for term in ("停车", "服务中心", "无障碍", "轮椅", "迷路", "安全", "身体不适", "交通")):
+        return "service"
+    return ""
+
+
 def cosine_similarity(left, right):
     if not left or not right:
         return 0.0
@@ -61,6 +81,7 @@ def search_documents(question, documents, limit=4):
     terms = expand_query_terms(question, extract_terms(question))
     question_vector = vectorize_text(" ".join([question, *terms]))
     normalized_question = normalize_text(question)
+    domain = query_domain(normalized_question)
     scored = []
 
     for document in documents:
@@ -75,6 +96,13 @@ def search_documents(question, documents, limit=4):
 
         if len(normalized_question) >= 4 and normalized_question in content:
             score += 20
+        if domain:
+            domain_terms = DOMAIN_TERMS[domain]
+            searchable_head = f"{title} {category} {content[:700]}"
+            domain_hits = sum(1 for term in domain_terms if term in searchable_head)
+            score += min(domain_hits, 5) * 9
+            if any(term in title or term in category for term in domain_terms):
+                score += 24
         for term in terms:
             if term in title:
                 score += 8

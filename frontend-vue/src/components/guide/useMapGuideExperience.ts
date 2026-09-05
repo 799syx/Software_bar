@@ -19,6 +19,7 @@ import {
 import DigitalHumanPanel, { type AvatarExpression, type AvatarMouthShape, type AvatarStage } from "../DigitalHumanPanel.vue";
 import { apiGet, apiPost } from "../../api";
 import { useFallbackImage } from "../../assets";
+import { interruptLiveTalking, liveTalkingEnabled, speakWithLiveTalking } from "../../composables/useLiveTalkingAvatar";
 import { useSpeechRecognition } from "../../composables/useSpeechRecognition";
 import { imageForSpot } from "../../photos";
 import type {
@@ -58,12 +59,19 @@ type MapSpotLayout = {
   labelY: number;
   labelAnchor: MapLabelAnchor;
 };
+type AMapBoundsOptions = {
+  northEast: [number, number];
+  southWest: [number, number];
+};
+type AMapBoundsConstructor = new (southWest: [number, number], northEast: [number, number]) => unknown;
+type AMapLayerConstructor = new (options?: Record<string, unknown>) => unknown;
 
 type AMapInstance = {
   add: (overlay: unknown | unknown[]) => void;
   addControl: (control: unknown) => void;
   clearMap: () => void;
   destroy: () => void;
+  resize?: () => void;
   setCenter: (center: [number, number]) => void;
   setFitView: (overlays?: unknown[], immediately?: boolean, avoid?: number[], maxZoom?: number) => void;
   setZoom: (zoom: number) => void;
@@ -71,10 +79,16 @@ type AMapInstance = {
 
 type AMapNamespace = {
   Map: new (container: HTMLElement, options: Record<string, unknown>) => AMapInstance;
+  Bounds?: AMapBoundsConstructor;
+  ImageLayer?: AMapLayerConstructor;
   Marker: new (options: Record<string, unknown>) => unknown;
   Polyline: new (options: Record<string, unknown>) => unknown;
   Pixel: new (x: number, y: number) => unknown;
   Scale?: new () => unknown;
+  TileLayer?: AMapLayerConstructor & {
+    RoadNet?: AMapLayerConstructor;
+    Satellite?: AMapLayerConstructor;
+  };
   ToolBar?: new (options?: Record<string, unknown>) => unknown;
   PlaceSearch?: new (options?: Record<string, unknown>) => {
     search: (keyword: string, callback: (status: string, result: unknown) => void) => void;
@@ -107,7 +121,11 @@ export type MapGuideExperienceProps = {
 
 export function useMapGuideExperience(props: MapGuideExperienceProps) {
 
-const DEMO_LOCATION_POINT = { x: 905, y: 820 };
+const SOURCE_GUIDE_MAP_SIZE = { width: 1334, height: 1179 };
+const GUIDE_MAP_SIZE = { width: 1672, height: 941 };
+const GUIDE_MAP_X_SCALE = GUIDE_MAP_SIZE.width / SOURCE_GUIDE_MAP_SIZE.width;
+const GUIDE_MAP_Y_SCALE = GUIDE_MAP_SIZE.height / SOURCE_GUIDE_MAP_SIZE.height;
+const DEMO_LOCATION_POINT = scaleGuideMapPoint({ x: 905, y: 820 });
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const VISION_IMAGE_MAX_EDGE = 1280;
 const VISION_IMAGE_QUALITY = 0.82;
@@ -115,60 +133,77 @@ const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "i
 const AMAP_KEY = String(import.meta.env.VITE_AMAP_KEY || "").trim();
 const AMAP_SECURITY_CODE = String(import.meta.env.VITE_AMAP_SECURITY_CODE || "").trim();
 const AMAP_SCRIPT_ID = "amap-jsapi-v2";
+const AMAP_SPOT_MARKER_TIP_OFFSET_Y = -30;
+const AMAP_SCENIC_IMAGE_URLS: Record<MapZone, string> = {
+  lingshan: "/assets/scenic/lingshan-handdrawn-map.png",
+  nianhua: "/assets/scenic/nianhua-handdrawn-map.png"
+};
+const AMAP_SCENIC_IMAGE_BOUNDS: Record<MapZone, AMapBoundsOptions> = {
+  lingshan: {
+    southWest: [120.0896, 31.42695],
+    northEast: [120.0971, 31.43172]
+  },
+  nianhua: {
+    southWest: [120.0784, 31.4131],
+    northEast: [120.0834, 31.4154]
+  }
+};
 
 const AMAP_ZONE_VIEW: Record<MapZone, { center: [number, number]; zoom: number }> = {
-  lingshan: { center: [120.0964, 31.4314], zoom: 16 },
+  lingshan: { center: [120.0941, 31.4301], zoom: 16 },
   nianhua: { center: [120.0813, 31.4147], zoom: 16 }
 };
 
 const AMAP_FIXED_GCJ02_COORDS: Record<string, { zone: MapZone; position: [number, number] }> = {
   游客服务中心: { zone: "lingshan", position: [120.0951, 31.4282] },
-  灵山大照壁: { zone: "lingshan", position: [120.0955, 31.4286] },
-  五明桥: { zone: "lingshan", position: [120.0957, 31.4291] },
-  佛足坛: { zone: "lingshan", position: [120.0959, 31.4297] },
-  五智门: { zone: "lingshan", position: [120.0961, 31.4303] },
-  菩提大道: { zone: "lingshan", position: [120.0963, 31.4309] },
-  九龙灌浴: { zone: "lingshan", position: [120.0965, 31.4315] },
-  降魔浮雕: { zone: "lingshan", position: [120.0967, 31.432] },
-  阿育王柱: { zone: "lingshan", position: [120.0969, 31.4325] },
-  百子戏弥勒: { zone: "lingshan", position: [120.0971, 31.4328] },
-  祥符禅寺: { zone: "lingshan", position: [120.0974, 31.4332] },
-  灵山大佛: { zone: "lingshan", position: [120.09139, 31.43194] },
-  佛教文化博览馆: { zone: "lingshan", position: [120.0978, 31.4334] },
-  灵山梵宫: { zone: "lingshan", position: [120.0974, 31.4303] },
-  五印坛城: { zone: "lingshan", position: [120.0991, 31.4316] },
-  曼飞龙塔: { zone: "lingshan", position: [120.099, 31.4329] },
-  无尽意斋: { zone: "lingshan", position: [120.0986, 31.4322] },
+  灵山大照壁: { zone: "lingshan", position: [120.09482, 31.42852] },
+  五明桥: { zone: "lingshan", position: [120.09448, 31.42874] },
+  佛足坛: { zone: "lingshan", position: [120.09405, 31.42896] },
+  五智门: { zone: "lingshan", position: [120.09368, 31.42916] },
+  菩提大道: { zone: "lingshan", position: [120.09336, 31.42936] },
+  九龙灌浴: { zone: "lingshan", position: [120.09302, 31.42948] },
+  降魔浮雕: { zone: "lingshan", position: [120.0927, 31.42978] },
+  阿育王柱: { zone: "lingshan", position: [120.09242, 31.43002] },
+  百子戏弥勒: { zone: "lingshan", position: [120.09218, 31.4302] },
+  祥符禅寺: { zone: "lingshan", position: [120.09202, 31.43042] },
+  灵山大佛: { zone: "lingshan", position: [120.09136, 31.43125] },
+  佛教文化博览馆: { zone: "lingshan", position: [120.09386, 31.43066] },
+  灵山梵宫: { zone: "lingshan", position: [120.09458, 31.43024] },
+  五印坛城: { zone: "lingshan", position: [120.09572, 31.43005] },
+  曼飞龙塔: { zone: "lingshan", position: [120.09692, 31.43094] },
+  无尽意斋: { zone: "lingshan", position: [120.09612, 31.43048] },
   拈花湾: { zone: "nianhua", position: [120.0813, 31.4147] },
-  拈花广场: { zone: "nianhua", position: [120.0811, 31.4137] },
-  梵天花海: { zone: "nianhua", position: [120.0802, 31.4148] },
-  香月花街: { zone: "nianhua", position: [120.0811, 31.4159] },
-  拈花堂: { zone: "nianhua", position: [120.0816, 31.4165] },
-  五灯湖: { zone: "nianhua", position: [120.0824, 31.4126] }
+  拈花广场: { zone: "nianhua", position: [120.08115, 31.41375] },
+  梵天花海: { zone: "nianhua", position: [120.08025, 31.4149] },
+  香月花街: { zone: "nianhua", position: [120.08125, 31.41535] },
+  拈花堂: { zone: "nianhua", position: [120.08175, 31.4159] },
+  五灯湖: { zone: "nianhua", position: [120.08245, 31.41275] }
 };
 
 const MAP_SPOT_LAYOUTS: Record<string, MapSpotLayout> = {
-  灵山大照壁: { x: 865, y: 776, labelX: -78, labelY: 38, labelAnchor: "end" },
-  五明桥: { x: 611, y: 788, labelX: -78, labelY: 34, labelAnchor: "end" },
-  佛足坛: { x: 724, y: 966, labelX: 76, labelY: 36, labelAnchor: "start" },
-  五智门: { x: 672, y: 918, labelX: 76, labelY: 36, labelAnchor: "start" },
-  菩提大道: { x: 366, y: 307, labelX: 76, labelY: -30, labelAnchor: "start" },
-  九龙灌浴: { x: 499, y: 582, labelX: -78, labelY: 42, labelAnchor: "end" },
-  降魔浮雕: { x: 580, y: 414, labelX: 78, labelY: -30, labelAnchor: "start" },
-  阿育王柱: { x: 914, y: 424, labelX: -78, labelY: -34, labelAnchor: "end" },
-  灵山大佛: { x: 914, y: 424, labelX: 78, labelY: 34, labelAnchor: "start" },
-  百子戏弥勒: { x: 572, y: 738, labelX: -78, labelY: 38, labelAnchor: "end" },
-  祥符禅寺: { x: 427, y: 476, labelX: -78, labelY: -30, labelAnchor: "end" },
-  佛教文化博览馆: { x: 268, y: 211, labelX: 76, labelY: -30, labelAnchor: "start" },
-  灵山梵宫: { x: 671, y: 148, labelX: 76, labelY: -30, labelAnchor: "start" },
-  五印坛城: { x: 765, y: 562, labelX: 78, labelY: 38, labelAnchor: "start" },
-  曼飞龙塔: { x: 156, y: 99, labelX: 76, labelY: -26, labelAnchor: "start" },
-  无尽意斋: { x: 156, y: 99, labelX: -78, labelY: 38, labelAnchor: "end" },
-  拈花广场: { x: 1100, y: 1062, labelX: -78, labelY: 42, labelAnchor: "end" },
-  香月花街: { x: 1048, y: 838, labelX: 78, labelY: -32, labelAnchor: "start" },
-  梵天花海: { x: 939, y: 960, labelX: -78, labelY: 38, labelAnchor: "end" },
-  拈花堂: { x: 1048, y: 838, labelX: -78, labelY: -34, labelAnchor: "end" },
-  五灯湖: { x: 1100, y: 1062, labelX: 78, labelY: 42, labelAnchor: "start" }
+  游客服务中心: { x: 1288, y: 705, labelX: -88, labelY: 40, labelAnchor: "end" },
+  灵山大照壁: { x: 1040, y: 853, labelX: 76, labelY: -26, labelAnchor: "start" },
+  五明桥: { x: 1000, y: 813, labelX: -82, labelY: 38, labelAnchor: "end" },
+  佛足坛: { x: 930, y: 697, labelX: 76, labelY: 38, labelAnchor: "start" },
+  五智门: { x: 880, y: 656, labelX: -82, labelY: 38, labelAnchor: "end" },
+  菩提大道: { x: 820, y: 594, labelX: -82, labelY: 38, labelAnchor: "end" },
+  九龙灌浴: { x: 783, y: 510, labelX: 78, labelY: 40, labelAnchor: "start" },
+  降魔浮雕: { x: 695, y: 406, labelX: -82, labelY: 38, labelAnchor: "end" },
+  阿育王柱: { x: 607, y: 254, labelX: 78, labelY: -30, labelAnchor: "start" },
+  灵山大佛: { x: 399, y: 89, labelX: 76, labelY: -22, labelAnchor: "start" },
+  百子戏弥勒: { x: 555, y: 205, labelX: -82, labelY: 38, labelAnchor: "end" },
+  祥符禅寺: { x: 509, y: 161, labelX: 76, labelY: -30, labelAnchor: "start" },
+  佛教文化博览馆: { x: 875, y: 345, labelX: 78, labelY: -28, labelAnchor: "start" },
+  灵山梵宫: { x: 989, y: 101, labelX: 76, labelY: -28, labelAnchor: "start" },
+  五印坛城: { x: 1122, y: 486, labelX: 78, labelY: 38, labelAnchor: "start" },
+  曼飞龙塔: { x: 1328, y: 355, labelX: -82, labelY: -34, labelAnchor: "end" },
+  无尽意斋: { x: 1180, y: 570, labelX: 76, labelY: 36, labelAnchor: "start" },
+  拈花湾: { x: 820, y: 470, labelX: -78, labelY: 42, labelAnchor: "end" },
+  拈花广场: { x: 928, y: 681, labelX: -78, labelY: 42, labelAnchor: "end" },
+  香月花街: { x: 1032, y: 435, labelX: 78, labelY: -32, labelAnchor: "start" },
+  梵天花海: { x: 627, y: 199, labelX: 78, labelY: -32, labelAnchor: "start" },
+  拈花堂: { x: 1086, y: 585, labelX: 78, labelY: 36, labelAnchor: "start" },
+  五灯湖: { x: 430, y: 540, labelX: -78, labelY: 42, labelAnchor: "end" }
 };
 
 const MAP_FALLBACK_SLOTS: MapSpotLayout[] = [
@@ -185,10 +220,13 @@ const MAP_FALLBACK_SLOTS: MapSpotLayout[] = [
   { x: 384, y: 304, labelX: 66, labelY: -24, labelAnchor: "start" },
   { x: 958, y: 432, labelX: -66, labelY: -24, labelAnchor: "end" }
 ];
+const FIXED_MAP_PIN_LABELS: Record<string, string> = {
+  香月花街: "4"
+};
 
 const mode = ref<HomeMode>("map");
 const activeZone = ref<MapZone>("lingshan");
-const selectedBasemap = ref<BasemapMode>("custom");
+const selectedBasemap = ref<BasemapMode>(AMAP_KEY ? "amap" : "custom");
 const assistantCollapsed = ref(false);
 const question = ref("");
 const error = ref("");
@@ -230,6 +268,8 @@ let speechTimer: number | undefined;
 let amapScriptPromise: Promise<AMapNamespace> | null = null;
 let amapMap: AMapInstance | null = null;
 let amapPlaceSearch: AMapPlaceSearchInstance | null = null;
+let amapLayerZone: MapZone | null = null;
+let amapUsesScenicImageLayer = false;
 const amapPoiPositions = new Map<number, [number, number]>();
 const amapPoiLookupFailed = new Set<number>();
 
@@ -289,9 +329,10 @@ const mapSpotPoints = computed(() =>
     return {
       ...spot,
       ...mapPointForSpot(spot, index, visibleSpots.value.length),
+      mapVisible: ["拈花堂", "香月花街"].includes(spot.name),
       inRoute: routeSpotIds.value.has(spot.id),
       routeOrder,
-      pinLabel: routeOrder ? String(routeOrder) : String(index + 1)
+      pinLabel: routeOrder ? String(routeOrder) : FIXED_MAP_PIN_LABELS[spot.name] || String(index + 1)
     };
   })
 );
@@ -364,6 +405,10 @@ watch(selectedBasemap, (nextMode) => {
   void syncAmapMap();
 });
 
+watch(useAmap, (enabled) => {
+  if (enabled && mode.value === "map") void syncAmapMap();
+});
+
 watch(
   () => speech.error.value,
   (message) => {
@@ -378,10 +423,10 @@ function mapPointForCoordinate(lat: number, lon: number, fallbackX: number, fall
   const lonSpan = Math.max(bounds.maxLon - bounds.minLon, 0.0001);
   const latSpan = Math.max(bounds.maxLat - bounds.minLat, 0.0001);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return { x: fallbackX, y: fallbackY };
-  return {
+  return scaleGuideMapPoint({
     x: 92 + ((lon - bounds.minLon) / lonSpan) * 1148,
     y: 1080 - ((lat - bounds.minLat) / latSpan) * 980
-  };
+  });
 }
 
 function mapPointForSpot(spot: ScenicSpot, index: number, total: number) {
@@ -399,22 +444,45 @@ function mapLayoutForSpot(spot: ScenicSpot, index: number, total: number): MapSp
   const namedLayout = MAP_SPOT_LAYOUTS[normalizedName];
   if (namedLayout) return namedLayout;
   if (Number.isFinite(Number(spot.mapX)) && Number.isFinite(Number(spot.mapY))) {
-    return {
+    return scaleGuideMapLayout({
       x: Number(spot.mapX),
       y: Number(spot.mapY),
       labelX: 34,
       labelY: -22,
       labelAnchor: "start"
-    };
+    });
   }
   const slot = MAP_FALLBACK_SLOTS[index % MAP_FALLBACK_SLOTS.length];
   const repeatOffset = Math.floor(index / MAP_FALLBACK_SLOTS.length) * 18;
   const alternatingOffset = index % 2 === 0 ? 0 : 12;
   const progressOffset = total > MAP_FALLBACK_SLOTS.length ? Math.min(16, total - MAP_FALLBACK_SLOTS.length) : 0;
-  return {
+  return scaleGuideMapLayout({
     ...slot,
     y: Math.min(526, slot.y + repeatOffset - progressOffset),
     labelY: slot.labelY + alternatingOffset
+  });
+}
+
+function scaleGuideMapX(value: number) {
+  return value * GUIDE_MAP_X_SCALE;
+}
+
+function scaleGuideMapY(value: number) {
+  return value * GUIDE_MAP_Y_SCALE;
+}
+
+function scaleGuideMapPoint(point: { x: number; y: number }) {
+  return {
+    x: scaleGuideMapX(point.x),
+    y: scaleGuideMapY(point.y)
+  };
+}
+
+function scaleGuideMapLayout(layout: MapSpotLayout): MapSpotLayout {
+  return {
+    ...layout,
+    x: scaleGuideMapX(layout.x),
+    y: scaleGuideMapY(layout.y)
   };
 }
 
@@ -459,6 +527,7 @@ function mapLabelMetrics(layout: MapSpotLayout, labelLines: string[]) {
   const longestLine = Math.max(...labelLines.map((line) => Array.from(line).length), 1);
   const labelWidth = Math.max(116, Math.min(240, longestLine * 22 + 36));
   const labelHeight = labelLines.length * 28 + 22;
+  const labelLineStep = 24;
   const labelBoxX =
     layout.labelAnchor === "end"
       ? layout.labelX - labelWidth + 10
@@ -466,13 +535,19 @@ function mapLabelMetrics(layout: MapSpotLayout, labelLines: string[]) {
         ? layout.labelX - labelWidth / 2
         : layout.labelX - 10;
   const labelBoxY = layout.labelY - 20;
+  const labelCenterX = labelBoxX + labelWidth / 2;
+  const labelCenterY = labelBoxY + labelHeight / 2;
   return {
+    labelAnchor: "middle" as const,
+    labelX: labelCenterX,
+    labelY: labelCenterY - ((labelLines.length - 1) * labelLineStep) / 2,
+    labelLineStep,
     labelWidth,
     labelHeight,
     labelBoxX,
     labelBoxY,
-    labelLineX: labelBoxX + labelWidth / 2,
-    labelLineY: labelBoxY + labelHeight / 2
+    labelLineX: labelCenterX,
+    labelLineY: labelCenterY
   };
 }
 
@@ -487,21 +562,40 @@ function loadAmapScript() {
 
   amapScriptPromise = new Promise<AMapNamespace>((resolve, reject) => {
     const existingScript = document.getElementById(AMAP_SCRIPT_ID) as HTMLScriptElement | null;
-    if (existingScript) {
-      existingScript.addEventListener("load", () => (window.AMap ? resolve(window.AMap) : reject(new Error("高德地图脚本加载失败"))), {
-        once: true
-      });
-      existingScript.addEventListener("error", () => reject(new Error("高德地图脚本加载失败")), { once: true });
-      return;
+    if (existingScript && existingScript.dataset.loadState !== "loading") {
+      existingScript.remove();
     }
 
-    const script = document.createElement("script");
+    const script = (document.getElementById(AMAP_SCRIPT_ID) as HTMLScriptElement | null) || document.createElement("script");
     script.id = AMAP_SCRIPT_ID;
     script.async = true;
+    script.dataset.loadState = "loading";
     script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(AMAP_KEY)}&plugin=AMap.Scale,AMap.ToolBar`;
-    script.onload = () => (window.AMap ? resolve(window.AMap) : reject(new Error("高德地图脚本加载失败")));
-    script.onerror = () => reject(new Error("高德地图脚本加载失败"));
-    document.head.appendChild(script);
+    const timeout = window.setTimeout(() => {
+      script.dataset.loadState = "failed";
+      script.remove();
+      amapScriptPromise = null;
+      reject(new Error("高德地图脚本加载超时"));
+    }, 12000);
+    script.onload = () => {
+      window.clearTimeout(timeout);
+      script.dataset.loadState = window.AMap ? "loaded" : "failed";
+      if (window.AMap) {
+        resolve(window.AMap);
+        return;
+      }
+      script.remove();
+      amapScriptPromise = null;
+      reject(new Error("高德地图脚本加载失败"));
+    };
+    script.onerror = () => {
+      window.clearTimeout(timeout);
+      script.dataset.loadState = "failed";
+      script.remove();
+      amapScriptPromise = null;
+      reject(new Error("高德地图脚本加载失败"));
+    };
+    if (!script.parentElement) document.head.appendChild(script);
   });
   return amapScriptPromise;
 }
@@ -540,6 +634,42 @@ function focusAmapZone(zone: MapZone = activeZone.value) {
   amapMap.setZoom(view.zoom);
 }
 
+function clampRatio(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(1, Math.max(0, value));
+}
+
+function amapCoordinateForGuidePoint(point: { x: number; y: number }, zone: MapZone = activeZone.value): [number, number] | null {
+  const bounds = AMAP_SCENIC_IMAGE_BOUNDS[zone];
+  if (!bounds) return null;
+  const xRatio = clampRatio(point.x / GUIDE_MAP_SIZE.width);
+  const yRatio = clampRatio(point.y / GUIDE_MAP_SIZE.height);
+  return [
+    bounds.southWest[0] + (bounds.northEast[0] - bounds.southWest[0]) * xRatio,
+    bounds.northEast[1] - (bounds.northEast[1] - bounds.southWest[1]) * yRatio
+  ];
+}
+
+function amapScenicImagePositionForSpot(spot: ScenicSpot & Partial<MapSpotLayout>): [number, number] | null {
+  if (!amapUsesScenicImageLayer) return null;
+  const x = Number(spot.x);
+  const y = Number(spot.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return amapCoordinateForGuidePoint({ x, y }, normalizedMapZone(spot.mapZone));
+}
+
+function isAmapPositionNearZone(position: [number, number], zone: MapZone) {
+  const bounds = AMAP_SCENIC_IMAGE_BOUNDS[zone];
+  const lonPadding = zone === "nianhua" ? 0.002 : 0.004;
+  const latPadding = zone === "nianhua" ? 0.002 : 0.003;
+  return (
+    position[0] >= bounds.southWest[0] - lonPadding &&
+    position[0] <= bounds.northEast[0] + lonPadding &&
+    position[1] >= bounds.southWest[1] - latPadding &&
+    position[1] <= bounds.northEast[1] + latPadding
+  );
+}
+
 function amapFixedPositionForSpot(spot: ScenicSpot): [number, number] | null {
   const cached = AMAP_FIXED_GCJ02_COORDS[normalizeSpotName(spot.name)];
   if (!cached) return null;
@@ -552,7 +682,7 @@ function hasVerifiedAmapPosition(spot: ScenicSpot) {
 }
 
 function shouldPreferAmapPoi(spot: ScenicSpot) {
-  return AMAP_POI_FIRST_SPOT_NAMES.has(normalizeSpotName(spot.name));
+  return Boolean(normalizeSpotName(spot.name));
 }
 
 function uniqueTexts(values: string[]) {
@@ -577,6 +707,7 @@ function amapPoiPositionFromResult(result: unknown, spot: ScenicSpot): [number, 
   const poiList = (result as { poiList?: { pois?: unknown[] } })?.poiList?.pois || [];
   const matchNames = amapPoiMatchNames(spot);
   const zoneName = (spot.mapZone || "lingshan") === "nianhua" ? "拈花湾" : "灵山";
+  const zone = normalizedMapZone(spot.mapZone);
   const pois = poiList
     .map((poi) => {
       const item = poi as { name?: string; address?: string; pname?: string; cityname?: string; adname?: string; location?: unknown };
@@ -591,11 +722,13 @@ function amapPoiPositionFromResult(result: unknown, spot: ScenicSpot): [number, 
       const addressMatched = matchNames.some((alias) => address.includes(alias));
       const zoneMatched = address.includes(zoneName) || name.includes(zoneName);
       const cityMatched = String(item.cityname || item.adname || address).includes("无锡");
+      const positionInZone = isAmapPositionNearZone(pair as [number, number], zone);
       const score =
         (nameMatched ? 20 : 0) +
         (addressMatched ? 8 : 0) +
         (zoneMatched ? 4 : 0) +
-        (cityMatched ? 2 : 0);
+        (cityMatched ? 2 : 0) +
+        (positionInZone ? 6 : -12);
       return { position: pair as [number, number], score };
     })
     .filter((poi) => Number.isFinite(poi.position[0]) && Number.isFinite(poi.position[1]))
@@ -631,21 +764,19 @@ async function ensureAmapPoiPositions(AMap: AMapNamespace) {
     const position = await searchAmapPoiPosition(AMap, spot);
     if (position) {
       amapPoiPositions.set(spot.id, position);
+      renderAmapOverlays(AMap);
     } else {
       amapPoiLookupFailed.add(spot.id);
     }
   }
 }
 
-function amapPositionForSpot(spot: ScenicSpot): [number, number] | null {
+function amapPositionForSpot(spot: ScenicSpot & Partial<MapSpotLayout>): [number, number] | null {
+  const scenicPosition = amapScenicImagePositionForSpot(spot);
+  if (scenicPosition) return scenicPosition;
   const poiPosition = amapPoiPositions.get(spot.id);
   if (poiPosition) return poiPosition;
-  const fixedPosition = amapFixedPositionForSpot(spot);
-  if (shouldPreferAmapPoi(spot)) return fixedPosition;
-  const lat = Number(spot.lat);
-  const lon = Number(spot.lon);
-  if (hasVerifiedAmapPosition(spot) && Number.isFinite(lon) && Number.isFinite(lat)) return [lon, lat];
-  return fixedPosition;
+  return null;
 }
 
 function escapeHtml(value: string) {
@@ -693,6 +824,37 @@ function createAmapCurrentLocationContent() {
   return content;
 }
 
+function amapPositionForCurrentLocation(): [number, number] | null {
+  if (amapUsesScenicImageLayer && currentLocation.value.source === "anchor") {
+    const anchorSpot = mapSpotPoints.value.find((spot) => spot.id === selectedSpotId.value);
+    const anchorPosition = anchorSpot ? amapScenicImagePositionForSpot(anchorSpot) : null;
+    if (anchorPosition) return anchorPosition;
+  }
+  if (currentLocation.value.source === "demo") return null;
+  const lat = Number(currentLocation.value.lat);
+  const lon = Number(currentLocation.value.lon);
+  return Number.isFinite(lat) && Number.isFinite(lon) ? [lon, lat] : null;
+}
+
+function createAmapScenicImageLayer(AMap: AMapNamespace, zone: MapZone) {
+  if (!AMap.ImageLayer || !AMap.Bounds) return null;
+  const bounds = AMAP_SCENIC_IMAGE_BOUNDS[zone];
+  return new AMap.ImageLayer({
+    bounds: new AMap.Bounds(bounds.southWest, bounds.northEast),
+    opacity: 1,
+    url: AMAP_SCENIC_IMAGE_URLS[zone],
+    zIndex: 3,
+    zooms: [13, 20]
+  });
+}
+
+function createAmapBaseOptions() {
+  return {
+    features: ["bg", "road", "building", "point"],
+    mapStyle: "amap://styles/normal"
+  };
+}
+
 async function syncAmapMap() {
   if (!useAmap.value || mode.value !== "map") return;
   await nextTick();
@@ -700,13 +862,17 @@ async function syncAmapMap() {
 
   try {
     const AMap = await loadAmapScript();
+    if (amapMap && amapLayerZone !== activeZone.value) destroyAmapMap();
     if (!amapMap) {
       const view = amapZoneView();
+      const baseLayerOptions = createAmapBaseOptions();
+      amapLayerZone = activeZone.value;
+      amapUsesScenicImageLayer = false;
       amapMap = new AMap.Map(amapContainer.value, {
         center: view.center,
-        features: ["bg", "road", "building", "point"],
-        mapStyle: "amap://styles/normal",
+        ...baseLayerOptions,
         resizeEnable: true,
+        showLabel: true,
         viewMode: "2D",
         zoom: view.zoom
       });
@@ -714,12 +880,18 @@ async function syncAmapMap() {
       if (AMap.ToolBar) amapMap.addControl(new AMap.ToolBar({ position: "RB" }));
     }
 
+    amapMap.resize?.();
     renderAmapOverlays(AMap);
-    void ensureAmapPoiPositions(AMap).then(() => renderAmapOverlays(AMap));
-  } catch {
+    window.requestAnimationFrame(() => amapMap?.resize?.());
+    if (!amapUsesScenicImageLayer && visibleSpots.value.some((spot) => shouldPreferAmapPoi(spot))) {
+      void ensureAmapPoiPositions(AMap).then(() => renderAmapOverlays(AMap));
+    }
+  } catch (loadError) {
+    const detail = loadError instanceof Error ? loadError.message : "未知错误";
+    console.error("AMap load failed", loadError);
     amapLoadFailed.value = true;
     selectedBasemap.value = "custom";
-    error.value = "高德地图加载失败，已切换为示意地图。请检查 Web JS API Key、安全密钥和网络访问。";
+    error.value = `高德地图加载失败：${detail}。已切换为示意地图，请检查 Web JS API Key、安全密钥、域名白名单和网络访问。`;
   }
 }
 
@@ -752,7 +924,7 @@ function renderAmapOverlays(AMap: AMapNamespace) {
     const spotOverlay = new AMap.Marker({
       anchor: "center",
       content: createAmapSpotContent(spot),
-      offset: new AMap.Pixel(0, 0),
+      offset: new AMap.Pixel(0, AMAP_SPOT_MARKER_TIP_OFFSET_Y),
       position,
       title: spot.name,
       zIndex: selectedSpotId.value === spot.id ? 130 : spot.inRoute ? 120 : 100
@@ -761,13 +933,14 @@ function renderAmapOverlays(AMap: AMapNamespace) {
     fitOverlays.push(spotOverlay);
   });
 
-  if (currentLocation.value.source !== "demo" && Number.isFinite(currentLocation.value.lat) && Number.isFinite(currentLocation.value.lon)) {
+  const currentPosition = amapPositionForCurrentLocation();
+  if (currentPosition) {
     overlays.push(
       new AMap.Marker({
         anchor: "center",
         content: createAmapCurrentLocationContent(),
         offset: new AMap.Pixel(0, 0),
-        position: [currentLocation.value.lon, currentLocation.value.lat],
+        position: currentPosition,
         zIndex: 140
       })
     );
@@ -782,9 +955,10 @@ function renderAmapOverlays(AMap: AMapNamespace) {
 }
 
 function destroyAmapMap() {
-  if (!amapMap) return;
-  amapMap.destroy();
+  if (amapMap) amapMap.destroy();
   amapMap = null;
+  amapLayerZone = null;
+  amapUsesScenicImageLayer = false;
 }
 
 function buildSpotIntro(spot: ScenicSpot | null) {
@@ -829,9 +1003,14 @@ function switchBasemap(nextMode: BasemapMode) {
     error.value = "未配置高德 Web JS API Key，演示已保持自定义景区图。";
     return;
   }
+  if (nextMode === "amap") {
+    amapLoadFailed.value = false;
+    destroyAmapMap();
+  }
   selectedBasemap.value = nextMode;
   error.value = "";
   notice.value = nextMode === "amap" ? "已切换到高德底图，可用于坐标校准。" : "已切换到自定义景区图，点位坐标继续复用。";
+  if (nextMode === "amap") void syncAmapMap();
 }
 
 function resetSpeech(nextStage: AvatarStage = "idle", nextExpression: AvatarExpression = "smile") {
@@ -845,20 +1024,29 @@ function resetSpeech(nextStage: AvatarStage = "idle", nextExpression: AvatarExpr
   speechProgress.value = 0;
 }
 
+function mouthShapeForSpeech(text: string, cursor: number): AvatarMouthShape {
+  const current = text[Math.max(0, Math.min(text.length - 1, cursor - 1))] || "";
+  if (!current || /[\s，。！？、；：,.!?;:]/.test(current)) return "rest";
+  const shapes: AvatarMouthShape[] = ["a", "o", "e", "i", "u"];
+  const code = current.codePointAt(0) || cursor;
+  return shapes[(code + cursor) % shapes.length];
+}
+
 function updateSpeechProgress(text: string, progress: number) {
   const safeProgress = Math.max(0, Math.min(1, progress));
   const cursor = Math.max(1, Math.round(text.length * safeProgress));
   spokenText.value = text.slice(Math.max(0, cursor - 18), Math.min(text.length, cursor + 24));
   speechProgress.value = safeProgress;
-  mouthShape.value = ["a", "i", "o", "e", "u"][cursor % 5] as AvatarMouthShape;
+  mouthShape.value = safeProgress >= 0.995 ? "rest" : mouthShapeForSpeech(text, cursor);
 }
 
-function stopSpeaking() {
+function stopSpeaking(interruptAvatar = true) {
   window.speechSynthesis?.cancel();
   if (audioRef.value) {
     audioRef.value.pause();
     audioRef.value = null;
   }
+  if (interruptAvatar) void interruptLiveTalking();
   resetSpeech();
 }
 
@@ -1078,7 +1266,19 @@ function speakWithBrowser(text: string) {
 
 async function speakText(text: string) {
   if (!text) return;
-  stopSpeaking();
+  stopSpeaking(false);
+  if (liveTalkingEnabled) {
+    resetSpeech("thinking", "surprised");
+    const sentToAvatar = await speakWithLiveTalking(text);
+    if (sentToAvatar) {
+      resetSpeech("speaking", "smile");
+      const startedAt = Date.now();
+      const estimatedMs = Math.max(2600, text.length * 210);
+      updateSpeechProgress(text, 0.01);
+      speechTimer = window.setInterval(() => updateSpeechProgress(text, (Date.now() - startedAt) / estimatedMs), 180);
+      return;
+    }
+  }
   if (props.ttsStatus.available) {
     try {
       resetSpeech("thinking", "surprised");
@@ -1114,6 +1314,20 @@ async function speakText(text: string) {
   speakWithBrowser(text);
 }
 
+function shouldAttachSelectedSpotContext(text: string) {
+  const compact = text.replace(/\s+/g, "").toLowerCase();
+  if (!compact) return false;
+  if (/^(你好|您好|在吗|hello|hi|谢谢|谢谢你|感谢|辛苦了)$/.test(compact)) return false;
+  if (/(你是谁|你叫什么|讲个笑话|写一首诗|现在几点|几点了|天气)/.test(compact)) return false;
+  const explicitSpot = activeSpots.value.some((spot) => {
+    const name = spot.name.replace(/\s+/g, "").toLowerCase();
+    const aliases = [name, name.replace(/^灵山/, ""), name.replace(/^拈花湾/, ""), name.replace(/^拈花/, "")].filter((item) => item.length >= 2);
+    return aliases.some((alias) => compact.includes(alias));
+  });
+  if (explicitSpot) return false;
+  return /(这里|这个|当前|景点|它|开放|几点|表演|演出|拍照|打卡|介绍|亮点|特色|多久|路线|怎么走|在哪|位置|门票|适合|好玩|看什么|多高|面积|参数)/.test(compact);
+}
+
 async function askCurrentSpot(value?: string) {
   const spot = selectedSpot.value;
   const cleanQuestion = (value || question.value).trim();
@@ -1124,7 +1338,7 @@ async function askCurrentSpot(value?: string) {
   lastAnswerLatencyMs.value = null;
   resetSpeech("thinking", "surprised");
   try {
-    const prompt = spot ? `${cleanQuestion}。当前选中的景点是：${spot.name}。` : cleanQuestion;
+    const prompt = spot && shouldAttachSelectedSpotContext(cleanQuestion) ? `${cleanQuestion}。当前选中的景点是：${spot.name}。` : cleanQuestion;
     const result = await apiPost<ChatResponse>("/api/chat", { question: prompt });
     question.value = "";
     spokenText.value = result.answer;

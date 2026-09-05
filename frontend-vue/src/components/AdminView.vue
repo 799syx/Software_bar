@@ -12,36 +12,36 @@ const adminView = useAdminView(props, emit);
 
 const {
   actionLabel, actionStatus, actionStatusClass, activeKnowledgeDocs, activeTab, Activity,
-  adminError, adminSpots, adminTabs, adminToken, apiDelete, apiGet,
+  adminError, adminSpots, adminTabs, apiDelete, apiGet,
   apiPost, apiPut, BadgeCheck, behavior, behaviorData, behaviorMatchedRows,
-  behaviorSampleRows, behaviorTrendLabels, behaviorTrendValues, Bot, busy, chatRecords,
+  behaviorSampleRows, behaviorTrendLabels, behaviorTrendValues, behaviorUploadInput, Bot, busy, chatRecords,
   CheckCircle2, clampNumber, Clock3, clonePersona, closeModal, compactText,
   compactTrendLabel, computed, convertingChatId, convertRecordToKnowledge, Database, deactivateSpot,
   deleteKnowledge, derivedScreenCapacityRate, derivedScreenDeviceHealth, derivedScreenPassIndex, derivedScreenPatrolCoverage, digitalHumanAvatar,
   digitalHumanAvatarFallback, distributionCount, Download, emptyKnowledgeForm, emptySpotForm, exportVisitorReport,
   fallbackKnowledgeDocuments, feedbackRecords, FileText, filteredKnowledgeDocs, formatNumber, Gauge,
-  handleKnowledgeUpload, HeartPulse, hotQuestionEntries, hotSpotEntries, hotSpotScoreMap, imageForSpot,
+  handleBehaviorUpload, handleKnowledgeUpload, HeartPulse, hotQuestionEntries, hotSpotEntries, hotSpotScoreMap, imageForSpot,
   importingBehaviorRows, importingPublicData, intentLabels, intentValues, isActionBusy, knowledgeCategories,
   knowledgeCategory, knowledgeDocs, knowledgeForm, knowledgePayload, knowledgeQuery, knowledgeStats,
   knowledgeUploadInput, lowConfidenceRecords, MapPinned, markdownTable, MessageSquareText, MetricChart,
   modal, mutationToken, notice, officialKnowledgeDocs, officialKnowledgeGroups, onMounted,
   openKnowledgeDetail, openKnowledgeEditor, openSpotManager, operationMetric, operationMetricCard, operationsOverview,
   percentNumber, personaForm, personaSummaryCards, photoOptions, pressurePercent, Radar,
-  reactive, readFileAsDataUrl, readInitialAdminTab, readSessionAdminToken, ref, refreshAdminSnapshot,
-  refreshAll, RefreshCw, reimportPublicData, reloadAdminData, rememberSessionAdminToken, reportAttentionItems,
-  reportCompositeScore, reportExperienceFactors, reportKpiCards, reportPositiveCount, reportPositiveRate, reportRecentRows,
+  reactive, readFileAsDataUrl, readInitialAdminTab, ref, refreshAdminSnapshot,
+  refreshAll, RefreshCw, reimportPublicData, reloadAdminData, reportAttentionItems,
+  reportAverageSatisfaction, reportCompositeScore, reportExperienceFactors, reportKpiCards, reportPositiveCount, reportPositiveRate, reportRecentRows,
   reportRecordTotal, reportRefreshTime, reportRiskItems, reportRiskRate, reportSampleLabels, reportSampleValues,
-  reportSatisfactionPercent, reportScopeLabel, reportSentimentItems, reportSentimentTotal, reportSourceCards, reportSuggestionItems,
+  reportSatisfactionPercent, reportSatisfactionSourceLabel, reportScopeLabel, reportSentimentItems, reportSentimentTotal, reportSourceCards, reportSuggestionItems,
   reportTrendAreaPath, reportTrendDelta, reportTrendDeltaLabel, reportTrendLabels, reportTrendPoints, reportTrendPolyline,
   reportTrendTitle, reportTrendValues, Route, Save, saveKnowledge, savePersona,
   saveSpot, saving, screenAgentCards, screenAssetCards, screenBaseLoad, screenCapacityRate,
-  screenCore, screenDeviceHealth, screenMetrics, screenPassIndex, screenPatrolCoverage, screenRecentRows,
+  screenDeviceHealth, screenMetrics, screenPassIndex, screenPatrolCoverage, screenRecentRows,
   screenScenicPins, screenSpotHeat, screenSpotRadius, screenStationIcons, screenTourFlowBars, screenTrendPoints,
   screenTrendPolyline, selectedKnowledge, selectedKnowledgeId, selectedSpot, selectedSpotId, sentimentLabels,
   sentimentValues, setActionStatus, setError, setNotice, ShieldAlert, SmilePlus,
   sourceTypeLabel, sourceTypeLabelMap, spotForm, spotImagePreview, spotPayload, spotPhotoChoices,
   Star, syncSelectedKnowledge, Target, topSpotMaxValue, Trash2, trendLabels,
-  trendValues, triggerKnowledgeUpload, Upload, uploadKnowledgeDocx, useFallbackImage, Users,
+  trendValues, triggerBehaviorUpload, triggerKnowledgeUpload, Upload, uploadKnowledgeDocx, useFallbackImage, Users,
   visibleRecords, watch, X, Zap
 } = adminView;
 </script>
@@ -51,7 +51,7 @@ const {
     <AdminShellHeader :ctx="adminView" />
 
     <section v-if="activeTab === 'screen'" class="admin-page screen-heritage-page">
-      <div class="heritage-screen" aria-label="灵山胜境景区运营态势屏">
+      <div class="heritage-screen" aria-label="灵山胜境数字人服务数据大屏">
         <i class="heritage-corner top-left"></i>
         <i class="heritage-corner top-right"></i>
         <i class="heritage-corner bottom-left"></i>
@@ -59,13 +59,13 @@ const {
 
         <header class="heritage-title-wrap">
           <span></span>
-          <h2>灵山胜境运营概览</h2>
+          <h2>灵山数字人服务大屏</h2>
         </header>
 
         <section class="heritage-panel panel-left panel-kpis">
           <header>
-            <strong>核心 KPI</strong>
-            <small>今日运行</small>
+            <strong>服务总览</strong>
+            <small>今日 · 本周</small>
           </header>
           <div class="heritage-kpi-grid">
             <article v-for="item in screenMetrics" :key="item.label">
@@ -80,8 +80,8 @@ const {
 
         <section class="heritage-panel panel-left panel-bars">
           <header>
-            <strong>区域热力</strong>
-            <small>片区负载</small>
+            <strong>游客关注热点</strong>
+            <small>行为类型与偏好</small>
           </header>
           <div class="heritage-bars">
             <article v-for="item in screenTourFlowBars" :key="item.label">
@@ -94,10 +94,10 @@ const {
 
         <section class="heritage-panel panel-left panel-trend">
           <header>
-            <strong>客流趋势</strong>
-            <small>入园节奏</small>
+            <strong>满意度趋势</strong>
+            <small>最近 6 期</small>
           </header>
-          <svg viewBox="0 0 260 120" role="img" aria-label="客流趋势折线">
+          <svg viewBox="0 0 260 120" role="img" aria-label="游客满意度趋势折线">
             <path class="trend-grid" d="M12 20 H246 M12 52 H246 M12 84 H246" />
             <polyline class="trend-line" :points="screenTrendPolyline" />
             <g v-for="point in screenTrendPoints" :key="`${point.label}-${point.value}`">
@@ -108,7 +108,7 @@ const {
         </section>
 
         <section class="heritage-center">
-          <svg class="heritage-landscape" viewBox="0 0 640 410" role="img" aria-label="灵山胜境运营态势图">
+          <svg class="heritage-landscape" viewBox="0 0 640 410" role="img" aria-label="灵山胜境数字人服务热点图">
             <defs>
               <linearGradient id="heritageMountain" x1="0" x2="1" y1="0" y2="1">
                 <stop offset="0%" stop-color="#d8efe1" />
@@ -151,27 +151,14 @@ const {
             <g v-for="pin in screenScenicPins" :key="pin.spot.id" class="heritage-pin" :transform="`translate(${pin.x} ${pin.y})`">
               <line x1="0" y1="0" x2="0" y2="-30" />
               <circle :r="pin.radius" />
-              <text :x="pin.labelX" :y="pin.labelY">{{ pin.label }}</text>
             </g>
           </svg>
-
-          <article class="heritage-core-card">
-            <header>
-              <small>核心片区</small>
-              <strong>{{ screenCore.title }}</strong>
-            </header>
-            <p>{{ screenCore.summary }}</p>
-            <div>
-              <span>重点片区：{{ screenCore.keyArea }}</span>
-              <span>值守状态：{{ screenCore.dutyStatus }}</span>
-            </div>
-          </article>
         </section>
 
         <section class="heritage-panel panel-right panel-agents">
           <header>
-            <strong>现场调度席</strong>
-            <small>片区运行</small>
+            <strong>服务触点</strong>
+            <small>游客端能力</small>
           </header>
           <div class="agent-strip">
             <article v-for="agent in screenAgentCards" :key="agent.name">
@@ -185,8 +172,8 @@ const {
 
         <section class="heritage-panel panel-right panel-assets">
           <header>
-            <strong>保障资源</strong>
-            <small>现场联动</small>
+            <strong>知识闭环</strong>
+            <small>内容质量</small>
           </header>
           <div class="asset-stack">
             <article v-for="item in screenAssetCards" :key="item.label">
@@ -199,8 +186,8 @@ const {
 
         <section class="heritage-panel panel-right panel-records">
           <header>
-            <strong>现场简报</strong>
-            <small>运行状态</small>
+            <strong>热点记录</strong>
+            <small>行为库 / 问答</small>
           </header>
           <div class="record-table compact-record-table">
             <article v-for="record in screenRecentRows" :key="record.question">
@@ -208,19 +195,32 @@ const {
               <strong>{{ record.confidence }}</strong>
               <small>{{ record.question }}</small>
             </article>
-            <p v-if="!screenRecentRows.length">暂无运行记录。</p>
+            <p v-if="!screenRecentRows.length">暂无热点记录。</p>
           </div>
         </section>
 
         <div class="heritage-actions">
           <button class="active" type="button" :class="actionStatusClass('refresh')" :disabled="isActionBusy('refresh')" @click="refreshAll">
             <RefreshCw :size="16" />
-            {{ actionLabel("refresh", "运营调度", "刷新中", "已刷新", "刷新失败") }}
+            {{ actionLabel("refresh", "刷新数据", "刷新中", "已刷新", "刷新失败") }}
+          </button>
+          <button type="button" @click="modal = 'records'">
+            <MessageSquareText :size="16" />
+            问答明细
           </button>
           <button type="button" @click="modal = 'spots'">
             <MapPinned :size="16" />
-            点位管理
+            热点点位
           </button>
+          <button type="button" @click="modal = 'reportDetail'">
+            <FileText :size="16" />
+            体验报告
+          </button>
+          <button type="button" :disabled="isActionBusy('importBehavior')" @click="triggerBehaviorUpload">
+            <Upload :size="16" />
+            导入行为数据
+          </button>
+          <input ref="behaviorUploadInput" class="visually-hidden-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" @change="handleBehaviorUpload" />
         </div>
       </div>
     </section>
@@ -240,6 +240,10 @@ const {
             <Database :size="16" />
             {{ actionLabel("importBehavior", "刷新/重建明细", "重建中", "已重建", "重建失败") }}
           </button>
+          <button class="secondary-action compact" type="button" :class="actionStatusClass('importBehavior')" :disabled="isActionBusy('importBehavior')" @click="triggerBehaviorUpload">
+            <Upload :size="16" />
+            导入行为 Excel
+          </button>
           <button class="secondary-action compact" type="button" :class="actionStatusClass('uploadKnowledge')" :disabled="isActionBusy('uploadKnowledge')" @click="triggerKnowledgeUpload">
             <Upload :size="16" />
             {{ actionLabel("uploadKnowledge", "上传资料", "读取中", "已读取", "读取失败") }}
@@ -248,6 +252,7 @@ const {
             <FileText :size="16" />
             新增知识
           </button>
+          <input ref="behaviorUploadInput" class="visually-hidden-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" @change="handleBehaviorUpload" />
           <input ref="knowledgeUploadInput" class="visually-hidden-file" type="file" accept=".docx,.txt,.md,.json,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,application/json" @change="handleKnowledgeUpload" />
         </div>
       </div>
@@ -274,7 +279,7 @@ const {
                 <option v-for="category in knowledgeCategories" :key="category" :value="category">{{ category }}</option>
               </select>
             </label>
-            <span>显示 {{ filteredKnowledgeDocs.length }} / {{ officialKnowledgeDocs.length }} 条资料</span>
+            <span>显示 {{ filteredKnowledgeDocs.length }} / {{ knowledgeDocs.length }} 条资料</span>
           </div>
         </section>
 
@@ -327,7 +332,7 @@ const {
             <span>{{ reportRefreshTime }}</span>
           </div>
           <div class="visitor-screen-title">
-            <small>体验分析报告</small>
+            <small>游客感受度报告</small>
             <h2>游客体验分析</h2>
           </div>
           <div class="visitor-actions">
@@ -345,7 +350,7 @@ const {
         <div class="visitor-grid">
           <section class="visitor-panel report-source-panel">
             <header>
-              <strong>数据来源</strong>
+              <strong>交互记录</strong>
               <small>{{ reportScopeLabel }}</small>
             </header>
             <article v-for="item in reportSourceCards" :key="item.label" class="source-line">
@@ -358,19 +363,17 @@ const {
             </article>
           </section>
 
-          <section class="visitor-panel report-kpi-panel">
+          <section class="visitor-panel report-kpi-panel report-focus-panel">
             <header>
-              <strong>核心指标</strong>
-              <small>实时服务口径</small>
+              <strong>游客关注点分析</strong>
+              <small>TOP {{ reportAttentionItems.length }}</small>
             </header>
-            <div class="visitor-kpi-grid">
-              <article v-for="item in reportKpiCards" :key="item.label">
-                <component :is="item.icon" :size="18" />
-                <small>{{ item.label }}</small>
-                <strong>{{ item.value }}<b>{{ item.unit }}</b></strong>
-                <span>{{ item.detail }}</span>
-              </article>
-            </div>
+            <p v-if="!reportAttentionItems.length" class="knowledge-empty-note">暂无真实关注点记录。</p>
+            <article v-for="item in reportAttentionItems" :key="item.label" class="focus-line" :class="`tone-${item.tone}`">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+              <i><b :style="{ width: item.percent }"></b></i>
+            </article>
           </section>
 
           <section class="visitor-core-panel">
@@ -383,9 +386,9 @@ const {
                 </div>
               </div>
               <div class="visitor-core-copy">
-                <small>满意度 {{ Number(analytics.averageSatisfaction || 4.6).toFixed(1) }} / 5.0</small>
-                <h3>{{ reportPositiveRate }}% 正向情绪</h3>
-                <p>以满意评分、情绪倾向、反馈痛点和行为样本命中情况合成游客感受判断。</p>
+                <small>满意度 {{ reportAverageSatisfaction.toFixed(1) }} / 5.0（{{ reportSatisfactionSourceLabel }}）</small>
+                <h3>{{ reportPositiveRate }}% 正向情感</h3>
+                <p>以满意评分、情感倾向、反馈痛点和行为样本命中情况合成游客感受判断。</p>
               </div>
               <div class="visitor-factor-grid">
                 <article v-for="factor in reportExperienceFactors" :key="factor.label">
@@ -400,8 +403,8 @@ const {
 
           <section class="visitor-panel report-sentiment-panel">
             <header>
-              <strong>情绪分布</strong>
-              <small>{{ formatNumber(reportSentimentTotal) }} 条反馈</small>
+              <strong>情感趋势</strong>
+              <small>{{ formatNumber(reportSentimentTotal) }} 条情感记录</small>
             </header>
             <article v-for="item in reportSentimentItems" :key="item.label" :class="`tone-${item.tone}`">
               <span>{{ item.label }}</span>
@@ -413,78 +416,22 @@ const {
 
           <section class="visitor-panel report-risk-panel">
             <header>
-              <strong>风险提醒</strong>
-              <small>待处理项</small>
+              <strong>服务建议</strong>
+              <small>运营优化</small>
             </header>
-            <article v-for="item in reportRiskItems" :key="item.label" :class="`risk-${item.tone}`">
-              <ShieldAlert :size="17" />
+            <article v-for="(item, index) in reportSuggestionItems" :key="item" class="service-suggestion-line risk-ok">
+              <CheckCircle2 :size="17" />
               <div>
-                <span>{{ item.label }}</span>
-                <strong>{{ item.value }}</strong>
-                <small>{{ item.meta }}</small>
-                <i><b :style="{ width: item.percent }"></b></i>
+                <span>建议 {{ index + 1 }}</span>
+                <strong>{{ item }}</strong>
               </div>
             </article>
           </section>
 
-          <section class="visitor-panel report-trend-panel">
-            <header>
-              <strong>{{ reportTrendTitle }}</strong>
-              <small>环比 {{ reportTrendDeltaLabel }}</small>
-            </header>
-            <svg viewBox="0 0 380 150" role="img" aria-label="满意度趋势">
-              <path class="report-trend-grid" d="M20 24 H362 M20 60 H362 M20 96 H362 M20 132 H362" />
-              <path class="report-trend-area" :d="reportTrendAreaPath" />
-              <polyline class="report-trend-line" :points="reportTrendPolyline" />
-              <g v-for="point in reportTrendPoints" :key="`${point.label}-${point.value}`">
-                <circle :cx="point.x" :cy="point.y" r="4" />
-                <text :x="point.x" y="145">{{ point.label }}</text>
-              </g>
-            </svg>
-          </section>
-
-          <section class="visitor-panel report-attention-panel">
-            <header>
-              <strong>关注点分析</strong>
-              <small>高频意图</small>
-            </header>
-            <article v-for="item in reportAttentionItems" :key="item.label" :class="`tone-${item.tone}`">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-              <i><b :style="{ width: item.percent }"></b></i>
-            </article>
-          </section>
-
-          <section class="visitor-panel report-action-panel">
-            <header>
-              <strong>运营建议</strong>
-              <small>本轮处置</small>
-            </header>
-            <ol>
-              <li v-for="item in reportSuggestionItems" :key="item">{{ item }}</li>
-            </ol>
-            <button type="button" @click="modal = 'records'">
-              <Zap :size="15" />
-              问答沉淀
-            </button>
-          </section>
-
-          <section class="visitor-panel report-record-panel">
-            <header>
-              <strong>典型反馈</strong>
-              <small>体验样本</small>
-            </header>
-            <article v-for="record in reportRecentRows" :key="record.question">
-              <span>{{ record.intent }}</span>
-              <strong>{{ record.score }}</strong>
-              <small>{{ record.question }}</small>
-            </article>
-            <p v-if="!reportRecentRows.length">暂无反馈记录。</p>
-          </section>
         </div>
       </div>
     </section>
 
-    <AdminModalLayer v-if="modal" :ctx="adminView" :analytics="analytics" />
+    <AdminModalLayer v-if="modal" :ctx="adminView" />
   </main>
 </template>

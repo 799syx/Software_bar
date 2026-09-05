@@ -1,4 +1,4 @@
-const CACHE_NAME = "lingshan-mobile-v1";
+const CACHE_NAME = "lingshan-mobile-v4";
 const SHELL = [
   "/mobile/",
   "/mobile/index.html",
@@ -6,9 +6,23 @@ const SHELL = [
   "/mobile/app.js",
   "/mobile/manifest.webmanifest",
   "/assets/scenic/photos/lingshan-grand-buddha.jpg",
+  "/assets/scenic/photos/lingshan-screen-wall.jpg",
+  "/assets/scenic/photos/five-brightness-bridge.png",
+  "/assets/scenic/photos/buddha-foot-altar.png",
+  "/assets/scenic/photos/five-wisdom-gate.jpg",
+  "/assets/scenic/photos/bodhi-avenue.png",
+  "/assets/scenic/photos/demon-subduing-relief.png",
+  "/assets/scenic/photos/ashoka-pillar.png",
+  "/assets/scenic/photos/children-mitreya.png",
+  "/assets/scenic/photos/buddhist-culture-museum.jpg",
   "/assets/scenic/photos/nine-dragons-bath.jpg",
   "/assets/scenic/photos/brahma-palace.jpg",
-  "/assets/scenic/photos/five-seal-mandala.jpg"
+  "/assets/scenic/photos/five-seal-mandala.jpg",
+  "/assets/scenic/photos/brahma-flower-sea.png",
+  "/assets/scenic/photos/manfeilong-pagoda.png",
+  "/assets/scenic/photos/wujinyi-zhai.png",
+  "/assets/scenic/photos/nianhua-plaza.png",
+  "/assets/scenic/photos/nianhua-hall.png"
 ];
 
 self.addEventListener("install", (event) => {

@@ -8,6 +8,7 @@ frontend-vue/.env.*.local
 .claude/
 .tmp_skill_inspect/
 .tmp/
+.tmp-*.png
 __pycache__/
 *.pyc
 *.log
@@ -20,6 +21,8 @@ node_modules/
 dist/
 build/
 frontend-next/
+frontend-vue/.vite-build-check*/
+docs/ppt_preview_*/
 *.db
 *.db-journal
 *.sqlite
@@ -30,6 +33,9 @@ backend/data/tmp/
 tests/probe/*.db
 tests/probe/*.db-journal
 *.mp4
+*.pptx
+*.pdf
+*.xlsx
 screenshot-*.png
 屏幕截图*.png
 屏幕录制*.mp4

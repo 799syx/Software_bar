@@ -197,11 +197,9 @@
   display: grid;
   grid-template-areas:
     "source core core sentiment"
-    "kpi core core risk"
-    "trend attention hot action"
-    "records records records action";
+    "kpi core core risk";
   grid-template-columns: minmax(220px, 0.95fr) minmax(0, 1.04fr) minmax(0, 1.04fr) minmax(230px, 0.95fr);
-  grid-template-rows: minmax(124px, 0.88fr) minmax(150px, 1fr) minmax(126px, 0.72fr) minmax(86px, 0.52fr);
+  grid-template-rows: minmax(146px, 0.83fr) minmax(0, 1.17fr);
   gap: 10px;
   min-height: 0;
 }
@@ -389,6 +387,58 @@
 
 .visitor-kpi-grid span {
   font-size: 11px;
+}
+
+.report-focus-panel .focus-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 8px;
+  align-items: center;
+  min-height: 34px;
+  min-width: 0;
+}
+
+.report-focus-panel .focus-line span,
+.report-focus-panel .focus-line strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-focus-panel .focus-line span {
+  color: var(--visitor-muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.report-focus-panel .focus-line strong {
+  color: #ffffff;
+  font-size: 15px;
+}
+
+.report-focus-panel .focus-line i {
+  grid-column: 1 / -1;
+  display: block;
+  overflow: hidden;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(224, 246, 238, 0.1);
+}
+
+.report-focus-panel .focus-line b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--visitor-green);
+}
+
+.report-focus-panel .focus-line.tone-blue b {
+  background: var(--visitor-blue);
+}
+
+.report-focus-panel .focus-line.tone-amber b {
+  background: var(--visitor-amber);
 }
 
 .visitor-core-frame {
@@ -616,6 +666,11 @@
   align-items: center;
 }
 
+.report-risk-panel .service-suggestion-line {
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: flex-start;
+}
+
 .report-risk-panel svg {
   color: var(--visitor-amber);
 }
@@ -624,6 +679,11 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 3px 8px;
+}
+
+.report-risk-panel .service-suggestion-line div {
+  grid-template-columns: 1fr;
+  gap: 3px;
 }
 
 .report-risk-panel span {
@@ -635,6 +695,16 @@
 .report-risk-panel strong {
   color: #ffffff;
   font-size: 16px;
+}
+
+.report-risk-panel .service-suggestion-line strong {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .report-risk-panel small,
@@ -786,10 +856,7 @@
     grid-template-areas:
       "core core"
       "source sentiment"
-      "kpi risk"
-      "trend attention"
-      "hot action"
-      "records records";
+      "kpi risk";
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: auto;
   }
@@ -827,12 +894,7 @@
       "source"
       "kpi"
       "sentiment"
-      "risk"
-      "trend"
-      "attention"
-      "hot"
-      "action"
-      "records";
+      "risk";
   }
 
   .visitor-gauge {
@@ -874,10 +936,8 @@
 .visitor-grid {
   grid-template-areas:
     "source core core sentiment"
-    "kpi core core risk"
-    "trend attention hot action"
-    "records records records action";
-  grid-template-rows: minmax(150px, auto) minmax(190px, auto) minmax(170px, auto) minmax(150px, auto);
+    "kpi core core risk";
+  grid-template-rows: minmax(146px, 0.83fr) minmax(0, 1.17fr);
   align-items: stretch;
 }
 
@@ -1009,11 +1069,10 @@
 @media (max-width: 1320px) {
   .visitor-grid {
     grid-template-areas:
-      "core core core"
-      "source kpi sentiment"
-      "risk trend attention"
-      "hot records action";
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+      "core core"
+      "source sentiment"
+      "kpi risk";
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: auto;
   }
 
@@ -1031,10 +1090,7 @@
     grid-template-areas:
       "core core"
       "source sentiment"
-      "kpi risk"
-      "trend attention"
-      "hot action"
-      "records records";
+      "kpi risk";
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: auto;
   }
@@ -1047,12 +1103,7 @@
       "source"
       "kpi"
       "sentiment"
-      "risk"
-      "trend"
-      "attention"
-      "hot"
-      "action"
-      "records";
+      "risk";
     grid-template-columns: 1fr;
   }
 
@@ -1127,6 +1178,7 @@
 .visitor-panel header strong,
 .source-line strong,
 .visitor-kpi-grid strong,
+.report-focus-panel .focus-line strong,
 .visitor-core-copy h3,
 .report-sentiment-panel strong,
 .report-attention-panel strong,
@@ -1141,6 +1193,7 @@
 .source-line small,
 .source-line span,
 .visitor-kpi-grid span,
+.report-focus-panel .focus-line span,
 .visitor-core-copy small,
 .visitor-core-copy p,
 .visitor-factor-grid span,
@@ -1233,6 +1286,7 @@
 }
 
 .visitor-factor-grid b,
+.report-focus-panel .focus-line b,
 .report-sentiment-panel b,
 .report-risk-panel b,
 .report-attention-panel b,
@@ -1241,6 +1295,7 @@
 }
 
 .visitor-factor-grid i,
+.report-focus-panel .focus-line i,
 .report-sentiment-panel i,
 .report-risk-panel i,
 .report-attention-panel i,
@@ -1249,11 +1304,13 @@
 }
 
 .report-sentiment-panel .tone-blue b,
+.report-focus-panel .tone-blue b,
 .report-attention-panel .tone-blue b {
   background: var(--admin-blue);
 }
 
 .report-sentiment-panel .tone-amber b,
+.report-focus-panel .tone-amber b,
 .report-attention-panel .tone-amber b,
 .report-risk-panel .risk-watch b {
   background: var(--admin-amber);

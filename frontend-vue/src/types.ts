@@ -32,6 +32,12 @@ export type Persona = {
   voiceSpeed?: number;
   voicePitch?: number;
   expressionProfile?: string;
+  avatarPresetKey?: "male" | "female" | "custom";
+  avatarId?: string;
+  refAudio?: string;
+  refText?: string;
+  avatarVoice?: string;
+  ttsMode?: string;
   updatedAt?: number;
 };
 
@@ -243,6 +249,7 @@ export type AnalyticsOverview = {
   weekServiceCount: number;
   averageSatisfaction: number;
   unresolvedCount: number;
+  feedbackCount?: number;
   hotSpots: Array<[string, number]>;
   preferences: Record<string, number>;
   hotQuestions: Array<[string, number]>;
@@ -252,7 +259,24 @@ export type AnalyticsOverview = {
   recentQuestions: ChatResponse[];
   serviceSuggestions: string[];
   behaviorBaseline?: BehaviorAnalytics;
+  knowledgeEvaluation?: KnowledgeEvaluation;
   dataSource?: Record<string, unknown>;
+};
+
+export type KnowledgeEvaluation = {
+  accuracyRate: number;
+  targetRate: number;
+  coverageRate: number;
+  recallHitRate: number;
+  lowConfidenceRate: number;
+  testedQuestionCount: number;
+  passedQuestionCount: number;
+  requiredFactCount: number;
+  coveredFactCount: number;
+  sourceTypeDistribution?: Record<string, number>;
+  evaluationMethod: string;
+  standardSet: string;
+  updatedAt: number;
 };
 
 export type OperationsMetric = {
@@ -307,6 +331,7 @@ export type OperationsOverview = {
 export type BehaviorAnalytics = {
   available: boolean;
   rowCount: number;
+  rawBehaviorRecordCount?: number;
   matchedScenicRows?: number;
   structuredTableName?: string;
   structuredTableImported?: boolean;
@@ -328,6 +353,8 @@ export type BehaviorAnalytics = {
   typeDistribution?: Array<[string, number]>;
   genderDistribution?: Record<string, number>;
   ageDistribution?: Record<string, number>;
+  satisfactionDistribution?: Record<string, number>;
+  satisfactionSentimentDistribution?: Record<string, number>;
   satisfactionTrend?: Array<{ date: string; score: number; count: number }>;
   consumptionBreakdown?: Array<{ name: string; value: number }>;
   dataSource?: {
