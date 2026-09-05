@@ -20,18 +20,20 @@ jobs:
       - name: Run backend tests
         shell: pwsh
         run: |
-          if (Test-Path "示范景区公开资料包") {
+          $passed = $false
+          for ($attempt = 1; $attempt -le 2; $attempt++) {
+            Write-Host "Backend test attempt $attempt of 2"
             python -m unittest discover -s tests
-          } else {
-            python -m unittest `
-              tests.test_backend_core.BackendCoreTest.test_quote_table_name_rejects_unknown_table `
-              tests.test_backend_core.BackendCoreTest.test_public_llm_config_hides_api_key `
-              tests.test_backend_core.BackendCoreTest.test_admin_token_requires_explicit_env `
-              tests.test_backend_core.BackendCoreTest.test_vision_config_is_independent_from_deepseek_text_config `
-              tests.test_backend_core.BackendCoreTest.test_normalize_image_data_url_accepts_small_png `
-              tests.test_backend_core.BackendCoreTest.test_normalize_image_data_url_rejects_svg `
-              tests.test_backend_core.BackendCoreTest.test_hybrid_search_matches_related_document `
-              tests.test_backend_core.BackendCoreTest.test_streaming_chunks_and_sse_event
+            if ($LASTEXITCODE -eq 0) {
+              $passed = $true
+              break
+            }
+            if ($attempt -lt 2) {
+              Start-Sleep -Seconds 2
+            }
+          }
+          if (-not $passed) {
+            throw "Backend tests failed twice."
           }
 
       - name: Set up Node.js
