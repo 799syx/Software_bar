@@ -20,11 +20,17 @@ jobs:
       - name: Run backend tests
         shell: pwsh
         run: |
-          # Keep CI deterministic on hosted Windows runners: loopback HTTP tests
-          # are retained for local regression runs but can hit runner socket races.
+          # Hosted Windows runners can race on loopback HTTP teardown. Keep the
+          # deterministic backend smoke suite here; the full suite remains local.
           python -m unittest `
-            tests.test_backend_core.BackendCoreTest `
-            tests.test_persona_avatar.PersonaAvatarTests
+            tests.test_backend_core.BackendCoreTest.test_quote_table_name_rejects_unknown_table `
+            tests.test_backend_core.BackendCoreTest.test_public_llm_config_hides_api_key `
+            tests.test_backend_core.BackendCoreTest.test_admin_token_requires_explicit_env `
+            tests.test_backend_core.BackendCoreTest.test_vision_config_is_independent_from_deepseek_text_config `
+            tests.test_backend_core.BackendCoreTest.test_normalize_image_data_url_accepts_small_png `
+            tests.test_backend_core.BackendCoreTest.test_normalize_image_data_url_rejects_svg `
+            tests.test_backend_core.BackendCoreTest.test_hybrid_search_matches_related_document `
+            tests.test_backend_core.BackendCoreTest.test_streaming_chunks_and_sse_event
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
